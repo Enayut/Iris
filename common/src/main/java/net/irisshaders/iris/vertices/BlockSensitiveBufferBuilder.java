@@ -1,13 +1,13 @@
 package net.irisshaders.iris.vertices;
 
 public interface BlockSensitiveBufferBuilder {
-	void beginBlock(int block, byte renderType, byte blockEmission, int localPosX, int localPosY, int localPosZ);
+   void beginBlock(int var1, byte var2, byte var3, int var4, int var5, int var6);
 
-	void overrideBlock(int block);
+   void overrideBlock(int var1);
 
-	void restoreBlock();
+   void restoreBlock();
 
-	void endBlock();
+   void endBlock();
 
-    void ignoreMidBlock(boolean b);
+   void ignoreMidBlock(boolean var1);
 }

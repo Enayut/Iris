@@ -1,39 +1,30 @@
 package net.irisshaders.iris.gl.sampler;
 
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.irisshaders.iris.gl.state.ValueUpdateNotifier;
 import net.irisshaders.iris.gl.texture.TextureType;
 
-import java.util.function.IntSupplier;
-import java.util.function.Supplier;
-
 public interface SamplerHolder {
-	void addExternalSampler(int textureUnit, String... names);
+   void addExternalSampler(int var1, String... var2);
 
-	boolean hasSampler(String name);
+   boolean hasSampler(String var1);
 
-	/**
-	 * Like addDynamicSampler, but also ensures that any unrecognized / unbound samplers sample from this
-	 * sampler.
-	 * <p>
-	 * Throws an exception if texture unit 0 is already allocated or reserved in some way. Do not call this
-	 * function after calls to addDynamicSampler, it must be called before any calls to addDynamicSampler.
-	 */
-	default boolean addDefaultSampler(IntSupplier sampler, String... names) {
-		return addDefaultSampler(TextureType.TEXTURE_2D, sampler, null, null, names);
-	}
+   default boolean addDefaultSampler(IntSupplier sampler, String... names) {
+      return this.addDefaultSampler(TextureType.TEXTURE_2D, sampler, null, null, names);
+   }
 
-	boolean addDefaultSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names);
+   boolean addDefaultSampler(TextureType var1, IntSupplier var2, ValueUpdateNotifier var3, Supplier<GlSampler> var4, String... var5);
 
+   default boolean addDynamicSampler(IntSupplier texture, GlSampler sampler, String... names) {
+      return this.addDynamicSampler(TextureType.TEXTURE_2D, texture, () -> sampler, names);
+   }
 
-	default boolean addDynamicSampler(IntSupplier texture, GlSampler sampler, String... names) {
-		return addDynamicSampler(TextureType.TEXTURE_2D, texture, () -> sampler, names);
-	}
+   boolean addDynamicSampler(TextureType var1, IntSupplier var2, Supplier<GlSampler> var3, String... var4);
 
-	boolean addDynamicSampler(TextureType type, IntSupplier texture, Supplier<GlSampler> sampler, String... names);
+   default boolean addDynamicSampler(IntSupplier texture, GlSampler sampler, ValueUpdateNotifier notifier, String... names) {
+      return this.addDynamicSampler(TextureType.TEXTURE_2D, texture, notifier, () -> sampler, names);
+   }
 
-	default boolean addDynamicSampler(IntSupplier texture, GlSampler sampler, ValueUpdateNotifier notifier, String... names) {
-		return addDynamicSampler(TextureType.TEXTURE_2D, texture, notifier, () -> sampler, names);
-	}
-
-	boolean addDynamicSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names);
+   boolean addDynamicSampler(TextureType var1, IntSupplier var2, ValueUpdateNotifier var3, Supplier<GlSampler> var4, String... var5);
 }

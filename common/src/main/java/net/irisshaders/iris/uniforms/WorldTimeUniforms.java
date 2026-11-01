@@ -1,55 +1,51 @@
 package net.irisshaders.iris.uniforms;
 
+import java.util.Objects;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.gl.uniform.UniformHolder;
+import net.irisshaders.iris.gl.uniform.UniformUpdateFrequency;
 import net.irisshaders.iris.shaderpack.DimensionId;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.attribute.EnvironmentAttributes;
-
-import java.util.Objects;
-
-import static net.irisshaders.iris.gl.uniform.UniformUpdateFrequency.PER_TICK;
+import net.minecraft.world.level.MoonPhase;
 
 public final class WorldTimeUniforms {
-	private WorldTimeUniforms() {
-	}
+   private WorldTimeUniforms() {
+   }
 
-	/**
-	 * Makes world time uniforms available to the given program
-	 *
-	 * @param uniforms the program to make the uniforms available to
-	 */
-	public static void addWorldTimeUniforms(UniformHolder uniforms) {
-		uniforms
-			.uniform1i(PER_TICK, "worldTime", WorldTimeUniforms::getWorldDayTime)
-			.uniform1i(PER_TICK, "worldDay", WorldTimeUniforms::getWorldDay)
-			.uniform1i(PER_TICK, "moonPhase", () -> Minecraft.getInstance().gameRenderer.getMainCamera().attributeProbe().getValue(EnvironmentAttributes.MOON_PHASE, CapturedRenderingState.INSTANCE.getTickDelta()).index());
-	}
+   public static void addWorldTimeUniforms(UniformHolder uniforms) {
+      uniforms.uniform1i(UniformUpdateFrequency.PER_TICK, "worldTime", WorldTimeUniforms::getWorldDayTime)
+         .uniform1i(UniformUpdateFrequency.PER_TICK, "worldDay", WorldTimeUniforms::getWorldDay)
+         .uniform1i(
+            UniformUpdateFrequency.PER_TICK,
+            "moonPhase",
+            () -> ((MoonPhase)Minecraft.getInstance()
+                  .gameRenderer
+                  .mainCamera()
+                  .attributeProbe()
+                  .getValue(EnvironmentAttributes.MOON_PHASE, CapturedRenderingState.INSTANCE.getTickDelta()))
+               .index()
+         );
+   }
 
-	static int getWorldDayTime() {
-		long timeOfDay = getWorld().getDefaultClockTime();
+   static int getWorldDayTime() {
+      long timeOfDay = getWorld().getDefaultClockTime();
+      if (Iris.getCurrentDimension() != DimensionId.END && Iris.getCurrentDimension() != DimensionId.NETHER) {
+         long dayTime = getWorld().dimensionType().hasFixedTime() ? 0L : timeOfDay % 24000L;
+         return (int)dayTime;
+      } else {
+         return (int)(timeOfDay % 24000L);
+      }
+   }
 
-		if (Iris.getCurrentDimension() == DimensionId.END || Iris.getCurrentDimension() == DimensionId.NETHER) {
-			// If the dimension is the nether or the end, don't override the fixed time.
-			// This was an oversight in versions before and including 1.2.5 causing inconsistencies, such as Complementary's ender beams not moving.
-			return (int) (timeOfDay % 24000L);
-		}
+   private static int getWorldDay() {
+      long timeOfDay = getWorld().getDefaultClockTime();
+      long day = timeOfDay / 24000L;
+      return (int)day;
+   }
 
-		long dayTime = getWorld().dimensionType().hasFixedTime() ? 0 :
-			(timeOfDay % 24000L);
-
-		return (int) dayTime;
-	}
-
-	private static int getWorldDay() {
-		long timeOfDay = getWorld().getDefaultClockTime();
-		long day = timeOfDay / 24000L;
-
-		return (int) day;
-	}
-
-	private static ClientLevel getWorld() {
-		return Objects.requireNonNull(Minecraft.getInstance().level);
-	}
+   private static ClientLevel getWorld() {
+      return Objects.requireNonNull(Minecraft.getInstance().level);
+   }
 }

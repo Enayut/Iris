@@ -197,6 +197,60 @@ tasks {
     }
 }
 
+// Offline validation of the Vulkan screen-pass shader path: Iris's real pack loader and TransformPatcher, then the
+// Vulkan translator, compiled and reflected with the shaderc/SPIRV-Cross settings RenderPearl 26.3 uses.
+// Extra packs (e.g. Complementary): ./gradlew :common:vulkanShaderCheck -PirisVulkanPacks=/path/a.zip,/path/b
+val vulkanCheck = sourceSets.create("vulkanCheck")
+
+val vulkanCheckStandardMacros by tasks.registering(Sync::class) {
+    // StandardMacros reads the mipmap level from the running Minecraft instance, which does not exist offline.
+    // This copy differs only in that expression; the build fails if the expression ever changes.
+    val source = file("src/main/java/net/irisshaders/iris/gl/shader/StandardMacros.java")
+    val expression = "Minecraft.getInstance().options.mipmapLevels().get()"
+    from(source)
+    into(layout.buildDirectory.dir("generated/vulkanCheck/net/irisshaders/iris/gl/shader"))
+    filter { line: String -> line.replace(expression, "4") }
+    doFirst {
+        if (!source.readText().contains(expression)) {
+            throw GradleException("vulkanShaderCheck: StandardMacros no longer contains '$expression'; update the override")
+        }
+    }
+}
+
+vulkanCheck.apply {
+    java {
+        srcDir(layout.buildDirectory.dir("generated/vulkanCheck"))
+        compileClasspath += sourceSets.getByName("main").output + sourceSets.getByName("main").compileClasspath
+        // Own classes first so the StandardMacros override shadows the production copy.
+        runtimeClasspath = output + sourceSets.getByName("main").output + sourceSets.getByName("main").runtimeClasspath +
+            configurations.getByName("vulkanCheckRuntimeClasspath")
+    }
+}
+
+dependencies {
+    "vulkanCheckImplementation"("org.antlr:antlr4-runtime:4.13.1")
+    "vulkanCheckImplementation"("io.github.douira:glsl-transformer:3.0.0-pre3")
+    "vulkanCheckImplementation"("org.anarres:jcpp:1.4.14")
+}
+
+tasks.named<JavaCompile>("compileVulkanCheckJava") {
+    dependsOn(vulkanCheckStandardMacros)
+}
+
+val vulkanShaderCheck by tasks.registering(JavaExec::class) {
+    description = "Translates and compiles shader pack screen passes for RenderPearl's Vulkan backend, offline."
+    classpath = vulkanCheck.runtimeClasspath
+    mainClass.set("net.irisshaders.iris.vulkan.VulkanShaderCheck")
+    val work = layout.buildDirectory.dir("vulkanShaderCheck").get().asFile
+    args(rootDir.resolve("testpacks/IrisVulkanSmoke").absolutePath, work.absolutePath)
+    (project.findProperty("irisVulkanPacks") as String?)?.split(",")?.forEach { args(it.trim()) }
+    jvmArgs("--enable-native-access=ALL-UNNAMED", "-Dorg.lwjgl.system.SharedLibraryExtractPath=" + work.resolve("natives").absolutePath)
+}
+
+tasks.named("check") {
+    dependsOn(vulkanShaderCheck)
+}
+
 // This trick hides common tasks in the IDEA list.
 tasks.configureEach {
     group = null

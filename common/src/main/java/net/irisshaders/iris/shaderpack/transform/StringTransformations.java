@@ -1,128 +1,112 @@
 package net.irisshaders.iris.shaderpack.transform;
 
 public class StringTransformations implements Transformations {
-	private String prefix;
-	private String extensions;
-	private StringBuilder injections;
-	private String body;
-	private StringBuilder suffix;
+   private String prefix;
+   private String extensions;
+   private StringBuilder injections;
+   private String body;
+   private StringBuilder suffix;
 
-	public StringTransformations(String base) {
-		int versionStringStart = base.indexOf("#version");
+   public StringTransformations(String base) {
+      int versionStringStart = base.indexOf("#version");
+      if (versionStringStart == -1) {
+         throw new IllegalArgumentException("A valid shader should include a version string");
+      }
 
-		if (versionStringStart == -1) {
-			throw new IllegalArgumentException("A valid shader should include a version string");
-		}
+      String prefix = base.substring(0, versionStringStart);
+      base = base.substring(versionStringStart);
+      int splitPoint = base.indexOf("\n") + 1;
+      this.prefix = prefix + base.substring(0, splitPoint);
+      this.extensions = "";
+      this.injections = new StringBuilder();
+      this.body = base.substring(splitPoint);
+      this.suffix = new StringBuilder("\n");
+      if (this.body.contains("#extension")) {
+         StringBuilder extensions = new StringBuilder();
+         StringBuilder body = new StringBuilder();
+         boolean inBody = false;
 
-		String prefix = base.substring(0, versionStringStart);
-		base = base.substring(versionStringStart);
+         for (String line : this.body.split("\\R")) {
+            String trimmedLine = line.trim();
+            if (!trimmedLine.isEmpty() && !trimmedLine.startsWith("#extension") && !trimmedLine.startsWith("//")) {
+               inBody = true;
+            }
 
-		int splitPoint = base.indexOf("\n") + 1;
+            if (inBody) {
+               body.append(line);
+               body.append('\n');
+            } else {
+               extensions.append(line);
+               extensions.append('\n');
+            }
+         }
 
-		this.prefix = prefix + base.substring(0, splitPoint);
-		this.extensions = "";
-		this.injections = new StringBuilder();
-		this.body = base.substring(splitPoint);
-		this.suffix = new StringBuilder("\n");
+         this.extensions = extensions.toString();
+         this.body = body.toString();
+      }
+   }
 
-		if (!body.contains("#extension")) {
-			// Don't try to hoist #extension lines if there are none.
-			return;
-		}
+   @Override
+   public String getPrefix() {
+      return this.prefix;
+   }
 
-		// We need to avoid injecting non-preprocessor code fragments before #extension
-		// declarations. Luckily, JCPP hoists #extension directives to be right after #version
-		// directives.
-		StringBuilder extensions = new StringBuilder();
-		StringBuilder body = new StringBuilder();
+   @Override
+   public void setPrefix(String prefix) {
+      this.prefix = prefix;
+   }
 
-		boolean inBody = false;
+   @Override
+   public boolean contains(String content) {
+      return this.toString().contains(content);
+   }
 
-		for (String line : this.body.split("\\R")) {
-			String trimmedLine = line.trim();
+   @Override
+   public void define(String key, String value) {
+      this.extensions = this.extensions + "#define " + key + " " + value + "\n";
+   }
 
-			if (!trimmedLine.isEmpty()
-				&& !trimmedLine.startsWith("#extension")
-				&& !trimmedLine.startsWith("//")) {
-				inBody = true;
-			}
+   @Override
+   public void injectLine(Transformations.InjectionPoint at, String line) {
+      if (at == Transformations.InjectionPoint.BEFORE_CODE) {
+         this.injections.append(line);
+         this.injections.append('\n');
+      } else if (at == Transformations.InjectionPoint.DEFINES) {
+         this.extensions = this.extensions + line + "\n";
+      } else {
+         if (at != Transformations.InjectionPoint.END) {
+            throw new IllegalArgumentException("Unsupported injection point: " + at);
+         }
 
-			if (inBody) {
-				body.append(line);
-				body.append('\n');
-			} else {
-				extensions.append(line);
-				extensions.append('\n');
-			}
-		}
+         this.suffix.append(line);
+         this.suffix.append('\n');
+      }
+   }
 
-		this.extensions = extensions.toString();
-		this.body = body.toString();
-	}
+   @Override
+   public void replaceExact(String from, String to) {
+      if (from.contains("\n")) {
+         throw new UnsupportedOperationException();
+      }
 
-	@Override
-	public String getPrefix() {
-		return prefix;
-	}
+      this.prefix = this.prefix.replace(from, to);
+      this.extensions = this.extensions.replace(from, to);
+      this.injections = new StringBuilder(this.injections.toString().replace(from, to));
+      this.body = this.body.replace(from, to);
+      this.suffix = new StringBuilder(this.suffix.toString().replace(from, to));
+   }
 
-	@Override
-	public void setPrefix(String prefix) {
-		this.prefix = prefix;
-	}
+   @Override
+   public void replaceRegex(String regex, String to) {
+      this.prefix = this.prefix.replaceAll(regex, to);
+      this.extensions = this.extensions.replaceAll(regex, to);
+      this.injections = new StringBuilder(this.injections.toString().replaceAll(regex, to));
+      this.body = this.body.replaceAll(regex, to);
+      this.suffix = new StringBuilder(this.suffix.toString().replaceAll(regex, to));
+   }
 
-	@Override
-	public boolean contains(String content) {
-		return toString().contains(content);
-	}
-
-	@Override
-	public void define(String key, String value) {
-		// TODO: This isn't super efficient, but oh well.
-		extensions = extensions + "#define " + key + " " + value + "\n";
-	}
-
-	@Override
-	public void injectLine(InjectionPoint at, String line) {
-		if (at == InjectionPoint.BEFORE_CODE) {
-			injections.append(line);
-			injections.append('\n');
-		} else if (at == InjectionPoint.DEFINES) {
-			// TODO: This isn't super efficient, but oh well.
-			extensions = extensions + line + "\n";
-		} else if (at == InjectionPoint.END) {
-			suffix.append(line);
-			suffix.append('\n');
-		} else {
-			throw new IllegalArgumentException("Unsupported injection point: " + at);
-		}
-	}
-
-	@Override
-	public void replaceExact(String from, String to) {
-		if (from.contains("\n")) {
-			// Block newline replacements for now, since that could mean that we're trying to replace across
-			// injections / body and that will result in weird behavior.
-			throw new UnsupportedOperationException();
-		}
-
-		prefix = prefix.replace(from, to);
-		extensions = extensions.replace(from, to);
-		injections = new StringBuilder(injections.toString().replace(from, to));
-		body = body.replace(from, to);
-		suffix = new StringBuilder(suffix.toString().replace(from, to));
-	}
-
-	@Override
-	public void replaceRegex(String regex, String to) {
-		prefix = prefix.replaceAll(regex, to);
-		extensions = extensions.replaceAll(regex, to);
-		injections = new StringBuilder(injections.toString().replaceAll(regex, to));
-		body = body.replaceAll(regex, to);
-		suffix = new StringBuilder(suffix.toString().replaceAll(regex, to));
-	}
-
-	@Override
-	public String toString() {
-		return prefix + extensions + injections + body + suffix;
-	}
+   @Override
+   public String toString() {
+      return this.prefix + this.extensions + this.injections + this.body + this.suffix;
+   }
 }

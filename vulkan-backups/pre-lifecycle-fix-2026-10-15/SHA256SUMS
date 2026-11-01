@@ -1,0 +1,4 @@
+c2ac8b6805307836c46fb7d528cb6f1a3999028f7ab3a2413fcdf3624f9246d0  ./common/src/main/java/net/irisshaders/iris/IrisVKOnly.java
+98e6aabd3713e0a3532aef299c71afcaae9d8868621838307cefaef0ac9e8cb3  ./common/src/main/java/net/irisshaders/iris/vulkan/IrisVulkanCapabilities.java
+4c60354bfcd2e815e150d86cf1d30a3c05d2272ee62912f604eb549d43a75dea  ./common/src/main/java/net/irisshaders/iris/vulkan/IrisVulkanRenderer.java
+c276a3ce2874bdc75606bef4db17849179d535ece8ea5b7ff8df07819fd4db4a  ./common/src/main/java/net/irisshaders/iris/vulkan/IrisVulkanScreenPasses.java

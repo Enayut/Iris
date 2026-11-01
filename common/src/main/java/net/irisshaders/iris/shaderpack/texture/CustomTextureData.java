@@ -6,192 +6,210 @@ import net.irisshaders.iris.gl.texture.PixelFormat;
 import net.irisshaders.iris.gl.texture.PixelType;
 
 public abstract class CustomTextureData {
-	private CustomTextureData() {
+   private CustomTextureData() {
+   }
 
-	}
+   public static final class LightmapMarker extends CustomTextureData {
+      @Override
+      public boolean equals(Object obj) {
+         return obj.getClass() == this.getClass();
+      }
 
-	public static final class PngData extends CustomTextureData {
-		private final TextureFilteringData filteringData;
-		private final byte[] content;
+      @Override
+      public int hashCode() {
+         return 33;
+      }
+   }
 
-		public PngData(TextureFilteringData filteringData, byte[] content) {
-			this.filteringData = filteringData;
-			this.content = content;
-		}
+   public static final class PngData extends CustomTextureData {
+      private final TextureFilteringData filteringData;
+      private final byte[] content;
 
-		public TextureFilteringData getFilteringData() {
-			return filteringData;
-		}
+      public PngData(TextureFilteringData filteringData, byte[] content) {
+         this.filteringData = filteringData;
+         this.content = content;
+      }
 
-		public byte[] getContent() {
-			return content;
-		}
-	}
+      public TextureFilteringData getFilteringData() {
+         return this.filteringData;
+      }
 
-	public static final class LightmapMarker extends CustomTextureData {
-		@Override
-		public boolean equals(Object obj) {
-			return obj.getClass() == this.getClass();
-		}
+      public byte[] getContent() {
+         return this.content;
+      }
+   }
 
-		@Override
-		public int hashCode() {
-			return 33;
-		}
-	}
+   public abstract static class RawData extends CustomTextureData {
+      private final byte[] content;
+      private final InternalTextureFormat internalFormat;
+      private final PixelFormat pixelFormat;
+      private final PixelType pixelType;
+      private final TextureFilteringData filteringData;
 
-	public static final class ResourceData extends CustomTextureData {
-		private final String namespace;
-		private final String location;
+      private RawData(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat, PixelFormat pixelFormat, PixelType pixelType) {
+         this.content = content;
+         this.filteringData = filteringData;
+         this.internalFormat = internalFormat;
+         this.pixelFormat = pixelFormat;
+         this.pixelType = pixelType;
+      }
 
-		public ResourceData(String namespace, String location) {
-			this.namespace = namespace;
-			this.location = location;
-		}
+      public final byte[] getContent() {
+         return this.content;
+      }
 
-		/**
-		 * @return The namespace of the texture. The caller is responsible for checking whether this is actually
-		 * a valid namespace.
-		 */
-		public String getNamespace() {
-			return namespace;
-		}
+      public TextureFilteringData getFilteringData() {
+         return this.filteringData;
+      }
 
-		/**
-		 * @return The path / location of the texture. The caller is responsible for checking whether this is actually
-		 * a valid path.
-		 */
-		public String getLocation() {
-			return location;
-		}
-	}
+      public final InternalTextureFormat getInternalFormat() {
+         return this.internalFormat;
+      }
 
-	public abstract static class RawData extends CustomTextureData {
-		private final byte[] content;
-		private final InternalTextureFormat internalFormat;
-		private final PixelFormat pixelFormat;
-		private final PixelType pixelType;
-		private final TextureFilteringData filteringData;
+      public final PixelFormat getPixelFormat() {
+         return this.pixelFormat;
+      }
 
-		private RawData(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat,
-						PixelFormat pixelFormat, PixelType pixelType) {
-			this.content = content;
-			this.filteringData = filteringData;
-			this.internalFormat = internalFormat;
-			this.pixelFormat = pixelFormat;
-			this.pixelType = pixelType;
-		}
+      public final PixelType getPixelType() {
+         return this.pixelType;
+      }
+   }
 
-		public final byte[] getContent() {
-			return content;
-		}
+   public static final class RawData1D extends CustomTextureData.RawData {
+      private final int sizeX;
 
-		public TextureFilteringData getFilteringData() {
-			return filteringData;
-		}
+      public RawData1D(
+         byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat, PixelFormat pixelFormat, PixelType pixelType, int sizeX
+      ) {
+         super(content, filteringData, internalFormat, pixelFormat, pixelType);
+         int expectedSize = sizeX * pixelFormat.getComponentCount() * pixelType.getByteSize();
+         if (content.length < expectedSize) {
+            throw new IllegalStateException("1D Custom texture was " + content.length + " bytes; expected " + expectedSize);
+         }
 
-		public final InternalTextureFormat getInternalFormat() {
-			return internalFormat;
-		}
+         if (content.length > expectedSize) {
+            Iris.logger
+               .warn("1D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
+         }
 
-		public final PixelFormat getPixelFormat() {
-			return pixelFormat;
-		}
+         this.sizeX = sizeX;
+      }
 
-		public final PixelType getPixelType() {
-			return pixelType;
-		}
-	}
+      public int getSizeX() {
+         return this.sizeX;
+      }
+   }
 
-	public static final class RawData1D extends RawData {
-		private final int sizeX;
+   public static class RawData2D extends CustomTextureData.RawData {
+      final int sizeX;
+      final int sizeY;
 
-		public RawData1D(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat,
-						 PixelFormat pixelFormat, PixelType pixelType, int sizeX) {
-			super(content, filteringData, internalFormat, pixelFormat, pixelType);
-			int expectedSize = sizeX * pixelFormat.getComponentCount() * pixelType.getByteSize();
+      public RawData2D(
+         byte[] content,
+         TextureFilteringData filteringData,
+         InternalTextureFormat internalFormat,
+         PixelFormat pixelFormat,
+         PixelType pixelType,
+         int sizeX,
+         int sizeY
+      ) {
+         super(content, filteringData, internalFormat, pixelFormat, pixelType);
+         int expectedSize = sizeX * sizeY * pixelFormat.getComponentCount() * pixelType.getByteSize();
+         if (content.length < expectedSize) {
+            throw new IllegalStateException("2D Custom texture was " + content.length + " bytes; expected " + expectedSize);
+         }
 
-			if (content.length < expectedSize) {
-				throw new IllegalStateException("1D Custom texture was " + content.length + " bytes; expected " + expectedSize);
-			} else if (content.length > expectedSize) {
-				Iris.logger.warn("1D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
-			}
+         if (content.length > expectedSize) {
+            Iris.logger
+               .warn("2D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
+         }
 
-			this.sizeX = sizeX;
-		}
+         this.sizeX = sizeX;
+         this.sizeY = sizeY;
+      }
 
-		public int getSizeX() {
-			return sizeX;
-		}
-	}
+      public int getSizeX() {
+         return this.sizeX;
+      }
 
-	public static class RawData2D extends RawData {
-		final int sizeX;
-		final int sizeY;
+      public int getSizeY() {
+         return this.sizeY;
+      }
+   }
 
-		public RawData2D(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat,
-						 PixelFormat pixelFormat, PixelType pixelType, int sizeX, int sizeY) {
-			super(content, filteringData, internalFormat, pixelFormat, pixelType);
+   public static final class RawData3D extends CustomTextureData.RawData {
+      final int sizeX;
+      final int sizeY;
+      final int sizeZ;
 
-			int expectedSize = sizeX * sizeY * pixelFormat.getComponentCount() * pixelType.getByteSize();
+      public RawData3D(
+         byte[] content,
+         TextureFilteringData filteringData,
+         InternalTextureFormat internalFormat,
+         PixelFormat pixelFormat,
+         PixelType pixelType,
+         int sizeX,
+         int sizeY,
+         int sizeZ
+      ) {
+         super(content, filteringData, internalFormat, pixelFormat, pixelType);
+         int expectedSize = sizeX * sizeY * sizeZ * pixelFormat.getComponentCount() * pixelType.getByteSize();
+         if (content.length < expectedSize) {
+            throw new IllegalStateException("3D Custom texture was " + content.length + " bytes; expected " + expectedSize);
+         }
 
-			if (content.length < expectedSize) {
-				throw new IllegalStateException("2D Custom texture was " + content.length + " bytes; expected " + expectedSize);
-			} else if (content.length > expectedSize) {
-				Iris.logger.warn("2D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
-			}
+         if (content.length > expectedSize) {
+            Iris.logger
+               .warn("3D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
+         }
 
-			this.sizeX = sizeX;
-			this.sizeY = sizeY;
-		}
+         this.sizeX = sizeX;
+         this.sizeY = sizeY;
+         this.sizeZ = sizeZ;
+      }
 
-		public int getSizeX() {
-			return sizeX;
-		}
+      public int getSizeX() {
+         return this.sizeX;
+      }
 
-		public int getSizeY() {
-			return sizeY;
-		}
-	}
+      public int getSizeY() {
+         return this.sizeY;
+      }
 
-	public static final class RawData3D extends RawData {
-		final int sizeX;
-		final int sizeY;
-		final int sizeZ;
+      public int getSizeZ() {
+         return this.sizeZ;
+      }
+   }
 
-		public RawData3D(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat,
-						 PixelFormat pixelFormat, PixelType pixelType, int sizeX, int sizeY, int sizeZ) {
-			super(content, filteringData, internalFormat, pixelFormat, pixelType);
+   public static class RawDataRect extends CustomTextureData.RawData2D {
+      public RawDataRect(
+         byte[] content,
+         TextureFilteringData filteringData,
+         InternalTextureFormat internalFormat,
+         PixelFormat pixelFormat,
+         PixelType pixelType,
+         int sizeX,
+         int sizeY
+      ) {
+         super(content, filteringData, internalFormat, pixelFormat, pixelType, sizeX, sizeY);
+      }
+   }
 
-			int expectedSize = sizeX * sizeY * sizeZ * pixelFormat.getComponentCount() * pixelType.getByteSize();
+   public static final class ResourceData extends CustomTextureData {
+      private final String namespace;
+      private final String location;
 
-			if (content.length < expectedSize) {
-				throw new IllegalStateException("3D Custom texture was " + content.length + " bytes; expected " + expectedSize);
-			} else if (content.length > expectedSize) {
-				Iris.logger.warn("3D Custom texture was " + content.length + " bytes; expected " + expectedSize + ". This is allowed, but you probably don't want this.");
-			}
+      public ResourceData(String namespace, String location) {
+         this.namespace = namespace;
+         this.location = location;
+      }
 
-			this.sizeX = sizeX;
-			this.sizeY = sizeY;
-			this.sizeZ = sizeZ;
-		}
+      public String getNamespace() {
+         return this.namespace;
+      }
 
-		public int getSizeX() {
-			return sizeX;
-		}
-
-		public int getSizeY() {
-			return sizeY;
-		}
-
-		public int getSizeZ() {
-			return sizeZ;
-		}
-	}
-
-	public static class RawDataRect extends RawData2D {
-		public RawDataRect(byte[] content, TextureFilteringData filteringData, InternalTextureFormat internalFormat, PixelFormat pixelFormat, PixelType pixelType, int sizeX, int sizeY) {
-			super(content, filteringData, internalFormat, pixelFormat, pixelType, sizeX, sizeY);
-		}
-	}
+      public String getLocation() {
+         return this.location;
+      }
+   }
 }

@@ -1,7 +1,7 @@
 package net.irisshaders.iris.layer;
 
 public interface RenderingWrapper {
-	void setup();
+   void setup();
 
-	void clear();
+   void clear();
 }

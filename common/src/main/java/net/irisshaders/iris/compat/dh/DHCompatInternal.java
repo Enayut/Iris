@@ -1,12 +1,12 @@
 package net.irisshaders.iris.compat.dh;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.seibel.distanthorizons.api.DhApi;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
+import com.seibel.distanthorizons.api.DhApi.Delayed;
 import com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiFramebuffer;
 import com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiGenericObjectShaderProgram;
 import com.seibel.distanthorizons.api.objects.math.DhApiVec3f;
 import com.seibel.distanthorizons.coreapi.DependencyInjection.OverrideInjector;
+import java.io.IOException;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.gl.IrisRenderSystem;
 import net.irisshaders.iris.gl.framebuffer.GlFramebuffer;
@@ -19,274 +19,261 @@ import net.irisshaders.iris.targets.Blaze3dRenderTargetExt;
 import net.irisshaders.iris.targets.DepthTexture;
 import net.irisshaders.iris.uniforms.CapturedRenderingState;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.opengl.GL20C;
-
-import java.io.IOException;
 
 public class DHCompatInternal {
-	public static final DHCompatInternal SHADERLESS = new DHCompatInternal(null, false);
-	static boolean dhEnabled;
-	private static int guiScale = -1;
-	private final IrisRenderingPipeline pipeline;
-	public boolean shouldOverrideShadow;
-	public boolean shouldOverride;
-	private GlFramebuffer dhGenericFramebuffer;
-	private IrisLodRenderProgram solidProgram;
-	private IrisGenericRenderProgram genericShader;
-	private IrisLodRenderProgram translucentProgram;
-	private IrisLodRenderProgram shadowProgram;
-	private GlFramebuffer dhTerrainFramebuffer;
-	private DhFrameBufferWrapper dhTerrainFramebufferWrapper;
-	private GlFramebuffer dhWaterFramebuffer;
-	private GlFramebuffer dhShadowFramebuffer;
-	private DhFrameBufferWrapper dhShadowFramebufferWrapper;
-	private DepthTexture depthTexNoTranslucent;
-	private boolean translucentDepthDirty;
-	private int storedDepthTex = -1;
-	private boolean incompatible = false;
-	private int cachedVersion;
+   public static final DHCompatInternal SHADERLESS = new DHCompatInternal(null, false);
+   static boolean dhEnabled;
+   private static int guiScale = -1;
+   private final IrisRenderingPipeline pipeline;
+   public boolean shouldOverrideShadow;
+   public boolean shouldOverride;
+   private GlFramebuffer dhGenericFramebuffer;
+   private IrisLodRenderProgram solidProgram;
+   private IrisGenericRenderProgram genericShader;
+   private IrisLodRenderProgram translucentProgram;
+   private IrisLodRenderProgram shadowProgram;
+   private GlFramebuffer dhTerrainFramebuffer;
+   private DhFrameBufferWrapper dhTerrainFramebufferWrapper;
+   private GlFramebuffer dhWaterFramebuffer;
+   private GlFramebuffer dhShadowFramebuffer;
+   private DhFrameBufferWrapper dhShadowFramebufferWrapper;
+   private DepthTexture depthTexNoTranslucent;
+   private boolean translucentDepthDirty;
+   private int storedDepthTex = -1;
+   private boolean incompatible = false;
+   private int cachedVersion;
 
-	public DHCompatInternal(IrisRenderingPipeline pipeline, boolean dhShadowEnabled) {
-		this.pipeline = pipeline;
+   public DHCompatInternal(IrisRenderingPipeline pipeline, boolean dhShadowEnabled) {
+      this.pipeline = pipeline;
+      if (pipeline != null && (Boolean)Delayed.configs.graphics().renderingEnabled().getValue()) {
+         if (pipeline.getDHTerrainShader().isEmpty() && pipeline.getDHWaterShader().isEmpty()) {
+            Iris.logger.warn("No DH shader found in this pack.");
+            this.incompatible = true;
+         } else {
+            this.cachedVersion = ((Blaze3dRenderTargetExt)Minecraft.getInstance().gameRenderer.mainRenderTarget()).iris$getDepthBufferVersion();
+            this.createDepthTex(Minecraft.getInstance().gameRenderer.mainRenderTarget().width, Minecraft.getInstance().gameRenderer.mainRenderTarget().height);
+            this.translucentDepthDirty = true;
+            ProgramSource terrain = pipeline.getDHTerrainShader().get();
+            this.solidProgram = IrisLodRenderProgram.createProgram(terrain.getName(), false, false, terrain, pipeline.getCustomUniforms(), pipeline);
+            ProgramSource generic = pipeline.getDHGenericShader().get();
+            this.genericShader = IrisGenericRenderProgram.createProgram(generic.getName() + "_g", false, false, generic, pipeline.getCustomUniforms(), pipeline);
+            this.dhGenericFramebuffer = pipeline.createDHFramebuffer(generic, false);
+            if (pipeline.getDHWaterShader().isPresent()) {
+               ProgramSource water = pipeline.getDHWaterShader().get();
+               this.translucentProgram = IrisLodRenderProgram.createProgram(water.getName(), false, true, water, pipeline.getCustomUniforms(), pipeline);
+               this.dhWaterFramebuffer = pipeline.createDHFramebuffer(water, true);
+            }
 
-		if (pipeline == null || !DhApi.Delayed.configs.graphics().renderingEnabled().getValue()) {
-			return;
-		}
+            if (pipeline.getDHShadowShader().isPresent() && dhShadowEnabled) {
+               ProgramSource shadow = pipeline.getDHShadowShader().get();
+               this.shadowProgram = IrisLodRenderProgram.createProgram(shadow.getName(), true, false, shadow, pipeline.getCustomUniforms(), pipeline);
+               if (pipeline.hasShadowRenderTargets()) {
+                  this.dhShadowFramebuffer = pipeline.createDHFramebufferShadow(shadow);
+                  this.dhShadowFramebufferWrapper = new DhFrameBufferWrapper(this.dhShadowFramebuffer);
+               }
 
-		if (pipeline.getDHTerrainShader().isEmpty() && pipeline.getDHWaterShader().isEmpty()) {
-			Iris.logger.warn("No DH shader found in this pack.");
-			incompatible = true;
-			return;
-		}
+               this.shouldOverrideShadow = true;
+            } else {
+               this.shouldOverrideShadow = false;
+            }
 
-		cachedVersion = ((Blaze3dRenderTargetExt) Minecraft.getInstance().getMainRenderTarget()).iris$getDepthBufferVersion();
+            this.dhTerrainFramebuffer = pipeline.createDHFramebuffer(terrain, false);
+            this.dhTerrainFramebufferWrapper = new DhFrameBufferWrapper(this.dhTerrainFramebuffer);
+            if (this.translucentProgram == null) {
+               this.translucentProgram = this.solidProgram;
+            }
 
-		createDepthTex(Minecraft.getInstance().getMainRenderTarget().width, Minecraft.getInstance().getMainRenderTarget().height);
-		translucentDepthDirty = true;
+            this.shouldOverride = true;
+         }
+      }
+   }
 
-		ProgramSource terrain = pipeline.getDHTerrainShader().get();
-		solidProgram = IrisLodRenderProgram.createProgram(terrain.getName(), false, false, terrain, pipeline.getCustomUniforms(), pipeline);
+   public static int getDhBlockRenderDistance() {
+      return Delayed.configs != null && dhEnabled
+         ? (Integer)Delayed.configs.graphics().chunkRenderDistance().getValue() * 16
+         : Minecraft.getInstance().options.getEffectiveRenderDistance();
+   }
 
-		ProgramSource generic = pipeline.getDHGenericShader().get();
-		genericShader = IrisGenericRenderProgram.createProgram(generic.getName() + "_g", false, false, generic, pipeline.getCustomUniforms(), pipeline);
-		dhGenericFramebuffer = pipeline.createDHFramebuffer(generic, false);
+   public static int getRenderDistance() {
+      return getDhBlockRenderDistance();
+   }
 
-		if (pipeline.getDHWaterShader().isPresent()) {
-			ProgramSource water = pipeline.getDHWaterShader().get();
-			translucentProgram = IrisLodRenderProgram.createProgram(water.getName(), false, true, water, pipeline.getCustomUniforms(), pipeline);
-			dhWaterFramebuffer = pipeline.createDHFramebuffer(water, true);
-		}
+   public static float getFarPlane() {
+      if (Delayed.configs == null) {
+         return 0.0F;
+      }
 
-		if (pipeline.getDHShadowShader().isPresent() && dhShadowEnabled) {
-			ProgramSource shadow = pipeline.getDHShadowShader().get();
-			shadowProgram = IrisLodRenderProgram.createProgram(shadow.getName(), true, false, shadow, pipeline.getCustomUniforms(), pipeline);
-			if (pipeline.hasShadowRenderTargets()) {
-				dhShadowFramebuffer = pipeline.createDHFramebufferShadow(shadow);
-				dhShadowFramebufferWrapper = new DhFrameBufferWrapper(dhShadowFramebuffer);
-			}
-			shouldOverrideShadow = true;
-		} else {
-			shouldOverrideShadow = false;
-		}
+      int lodChunkDist = (Integer)Delayed.configs.graphics().chunkRenderDistance().getValue();
+      int lodBlockDist = lodChunkDist * 16;
+      return (float)((lodBlockDist + 512) * Math.sqrt(2.0));
+   }
 
-		dhTerrainFramebuffer = pipeline.createDHFramebuffer(terrain, false);
-		dhTerrainFramebufferWrapper = new DhFrameBufferWrapper(dhTerrainFramebuffer);
+   public static float getNearPlane() {
+      return Delayed.renderProxy == null ? 0.0F : Delayed.renderProxy.getNearClipPlaneDistanceInBlocks(CapturedRenderingState.INSTANCE.getRealTickDelta());
+   }
 
-		if (translucentProgram == null) {
-			translucentProgram = solidProgram;
-		}
+   public static boolean checkFrame() {
+      if (guiScale == -1) {
+         guiScale = (Integer)Minecraft.getInstance().options.guiScale().get();
+      }
 
-		shouldOverride = true;
-	}
+      if (Delayed.configs == null) {
+         return dhEnabled;
+      }
 
-	public static int getDhBlockRenderDistance() {
-		if (DhApi.Delayed.configs == null || !dhEnabled) {
-			// Called before DH has finished setup
-			return Minecraft.getInstance().options.getEffectiveRenderDistance();
-		}
+      if ((
+            dhEnabled != (Boolean)Delayed.configs.graphics().renderingEnabled().getValue()
+               || guiScale != (Integer)Minecraft.getInstance().options.guiScale().get()
+         )
+         && Iris.isPackInUseQuick()) {
+         guiScale = (Integer)Minecraft.getInstance().options.guiScale().get();
+         dhEnabled = (Boolean)Delayed.configs.graphics().renderingEnabled().getValue();
 
-		return DhApi.Delayed.configs.graphics().chunkRenderDistance().getValue() * 16;
-	}
+         try {
+            Iris.reload();
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+      }
 
-	public static int getRenderDistance() {
-		return getDhBlockRenderDistance();
-	}
+      return dhEnabled;
+   }
 
-	public static float getFarPlane() {
-		if (DhApi.Delayed.configs == null) {
-			// Called before DH has finished setup
-			return 0;
-		}
+   public boolean incompatiblePack() {
+      return this.incompatible;
+   }
 
-		int lodChunkDist = DhApi.Delayed.configs.graphics().chunkRenderDistance().getValue();
-		int lodBlockDist = lodChunkDist * 16;
-		// sqrt 2 to prevent the corners from being cut off
-		return (float) ((lodBlockDist + 512) * Math.sqrt(2));
-	}
+   public void reconnectDHTextures(int depthTex) {
+      if (((Blaze3dRenderTargetExt)Minecraft.getInstance().gameRenderer.mainRenderTarget()).iris$getDepthBufferVersion() != this.cachedVersion) {
+         this.cachedVersion = ((Blaze3dRenderTargetExt)Minecraft.getInstance().gameRenderer.mainRenderTarget()).iris$getDepthBufferVersion();
+         this.createDepthTex(Minecraft.getInstance().gameRenderer.mainRenderTarget().width, Minecraft.getInstance().gameRenderer.mainRenderTarget().height);
+      }
 
-	public static float getNearPlane() {
-		if (DhApi.Delayed.renderProxy == null) {
-			// Called before DH has finished setup
-			return 0;
-		}
+      if (this.storedDepthTex != depthTex && this.dhTerrainFramebuffer != null) {
+         this.storedDepthTex = depthTex;
+         this.dhTerrainFramebuffer.addDepthAttachmentBypass(depthTex);
+         if (this.dhWaterFramebuffer != null) {
+            this.dhWaterFramebuffer.addDepthAttachmentBypass(depthTex);
+         }
 
-		return DhApi.Delayed.renderProxy.getNearClipPlaneDistanceInBlocks(CapturedRenderingState.INSTANCE.getRealTickDelta());
-	}
+         if (this.dhGenericFramebuffer != null) {
+            this.dhGenericFramebuffer.addDepthAttachmentBypass(depthTex);
+         }
+      }
+   }
 
-	public static boolean checkFrame() {
-		if (guiScale == -1) {
-			guiScale = Minecraft.getInstance().options.guiScale().get();
-		}
+   public void createDepthTex(int width, int height) {
+      if (this.depthTexNoTranslucent != null) {
+         this.depthTexNoTranslucent.destroy();
+         this.depthTexNoTranslucent = null;
+      }
 
-		if (DhApi.Delayed.configs == null) return dhEnabled;
+      this.translucentDepthDirty = true;
+      this.depthTexNoTranslucent = new DepthTexture("DH depth tex", width, height, DepthBufferFormat.DEPTH32F);
+   }
 
-		if ((dhEnabled != DhApi.Delayed.configs.graphics().renderingEnabled().getValue() || guiScale != Minecraft.getInstance().options.guiScale().get())
-			&& Iris.isPackInUseQuick()) {
-			guiScale = Minecraft.getInstance().options.guiScale().get();
-			dhEnabled = DhApi.Delayed.configs.graphics().renderingEnabled().getValue();
-			try {
-				Iris.reload();
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-		}
+   public void clear() {
+      if (this.solidProgram != null) {
+         this.solidProgram.free();
+         this.solidProgram = null;
+      }
 
-		return dhEnabled;
-	}
+      if (this.translucentProgram != null) {
+         this.translucentProgram.free();
+         this.translucentProgram = null;
+      }
 
-	public boolean incompatiblePack() {
-		return incompatible;
-	}
+      if (this.shadowProgram != null) {
+         this.shadowProgram.free();
+         this.shadowProgram = null;
+      }
 
-	public void reconnectDHTextures(int depthTex) {
-		if (((Blaze3dRenderTargetExt) Minecraft.getInstance().getMainRenderTarget()).iris$getDepthBufferVersion() != cachedVersion) {
-			cachedVersion = ((Blaze3dRenderTargetExt) Minecraft.getInstance().getMainRenderTarget()).iris$getDepthBufferVersion();
-			createDepthTex(Minecraft.getInstance().getMainRenderTarget().width, Minecraft.getInstance().getMainRenderTarget().height);
-		}
-		if (storedDepthTex != depthTex && dhTerrainFramebuffer != null) {
-			storedDepthTex = depthTex;
-			dhTerrainFramebuffer.addDepthAttachmentBypass(depthTex);
-			if (dhWaterFramebuffer != null) {
-				dhWaterFramebuffer.addDepthAttachmentBypass(depthTex);
-			}
-			if (dhGenericFramebuffer != null) {
-				dhGenericFramebuffer.addDepthAttachmentBypass(depthTex);
-			}
-		}
-	}
+      this.shouldOverrideShadow = false;
+      this.shouldOverride = false;
+      this.dhTerrainFramebuffer = null;
+      this.dhWaterFramebuffer = null;
+      this.dhShadowFramebuffer = null;
+      this.storedDepthTex = -1;
+      this.translucentDepthDirty = true;
+      OverrideInjector.INSTANCE.unbind(IDhApiFramebuffer.class, this.dhTerrainFramebufferWrapper);
+      OverrideInjector.INSTANCE.unbind(IDhApiGenericObjectShaderProgram.class, this.genericShader);
+      OverrideInjector.INSTANCE.unbind(IDhApiFramebuffer.class, this.dhShadowFramebufferWrapper);
+      this.dhTerrainFramebufferWrapper = null;
+      this.dhShadowFramebufferWrapper = null;
+   }
 
-	public void createDepthTex(int width, int height) {
-		if (depthTexNoTranslucent != null) {
-			depthTexNoTranslucent.destroy();
-			depthTexNoTranslucent = null;
-		}
+   public void setModelPos(DhApiVec3f modelPos) {
+      this.solidProgram.bind();
+      this.solidProgram.setModelPos(modelPos);
+      this.translucentProgram.bind();
+      this.translucentProgram.setModelPos(modelPos);
+      this.solidProgram.bind();
+   }
 
-		translucentDepthDirty = true;
+   public IrisLodRenderProgram getSolidShader() {
+      return this.solidProgram;
+   }
 
-		depthTexNoTranslucent = new DepthTexture("DH depth tex", width, height, DepthBufferFormat.DEPTH32F);
-	}
+   public GlFramebuffer getSolidFB() {
+      return this.dhTerrainFramebuffer;
+   }
 
-	public void clear() {
-		if (solidProgram != null) {
-			solidProgram.free();
-			solidProgram = null;
-		}
-		if (translucentProgram != null) {
-			translucentProgram.free();
-			translucentProgram = null;
-		}
-		if (shadowProgram != null) {
-			shadowProgram.free();
-			shadowProgram = null;
-		}
-		shouldOverrideShadow = false;
-		shouldOverride = false;
-		dhTerrainFramebuffer = null;
-		dhWaterFramebuffer = null;
-		dhShadowFramebuffer = null;
-		storedDepthTex = -1;
-		translucentDepthDirty = true;
+   public DhFrameBufferWrapper getSolidFBWrapper() {
+      return this.dhTerrainFramebufferWrapper;
+   }
 
-		OverrideInjector.INSTANCE.unbind(IDhApiFramebuffer.class, dhTerrainFramebufferWrapper);
-		OverrideInjector.INSTANCE.unbind(IDhApiGenericObjectShaderProgram.class, genericShader);
-		OverrideInjector.INSTANCE.unbind(IDhApiFramebuffer.class, dhShadowFramebufferWrapper);
-		dhTerrainFramebufferWrapper = null;
-		dhShadowFramebufferWrapper = null;
-	}
+   public IrisLodRenderProgram getShadowShader() {
+      return this.shadowProgram;
+   }
 
-	public void setModelPos(DhApiVec3f modelPos) {
-		solidProgram.bind();
-		solidProgram.setModelPos(modelPos);
-		translucentProgram.bind();
-		translucentProgram.setModelPos(modelPos);
-		solidProgram.bind();
-	}
+   public GlFramebuffer getShadowFB() {
+      return this.dhShadowFramebuffer;
+   }
 
-	public IrisLodRenderProgram getSolidShader() {
-		return solidProgram;
-	}
+   public DhFrameBufferWrapper getShadowFBWrapper() {
+      return this.dhShadowFramebufferWrapper;
+   }
 
-	public GlFramebuffer getSolidFB() {
-		return dhTerrainFramebuffer;
-	}
+   public IrisLodRenderProgram getTranslucentShader() {
+      return this.translucentProgram == null ? this.solidProgram : this.translucentProgram;
+   }
 
-	public DhFrameBufferWrapper getSolidFBWrapper() {
-		return dhTerrainFramebufferWrapper;
-	}
+   public int getStoredDepthTex() {
+      return this.storedDepthTex;
+   }
 
-	public IrisLodRenderProgram getShadowShader() {
-		return shadowProgram;
-	}
+   public void copyTranslucents(int width, int height) {
+      if (this.translucentDepthDirty) {
+         this.translucentDepthDirty = false;
+         GlStateManager._bindTexture(this.depthTexNoTranslucent.getTextureId());
+         this.dhTerrainFramebuffer.bindAsReadBuffer();
+         IrisRenderSystem.copyTexImage2D(3553, 0, DepthBufferFormat.DEPTH32F.getGlInternalFormat(), 0, 0, width, height, 0);
+      } else {
+         DepthCopyStrategy.fastest(false).copy(this.dhTerrainFramebuffer, this.storedDepthTex, null, this.depthTexNoTranslucent.getTextureId(), width, height);
+      }
+   }
 
-	public GlFramebuffer getShadowFB() {
-		return dhShadowFramebuffer;
-	}
+   public GlFramebuffer getTranslucentFB() {
+      return this.dhWaterFramebuffer;
+   }
 
-	public DhFrameBufferWrapper getShadowFBWrapper() {
-		return dhShadowFramebufferWrapper;
-	}
+   public GlFramebuffer getGenericFB() {
+      return this.dhGenericFramebuffer;
+   }
 
-	public IrisLodRenderProgram getTranslucentShader() {
-		if (translucentProgram == null) {
-			return solidProgram;
-		}
-		return translucentProgram;
-	}
+   public int getDepthTexNoTranslucent() {
+      return this.depthTexNoTranslucent == null ? 0 : this.depthTexNoTranslucent.getTextureId();
+   }
 
-	public int getStoredDepthTex() {
-		return storedDepthTex;
-	}
+   public IDhApiGenericObjectShaderProgram getGenericShader() {
+      return this.genericShader;
+   }
 
-	public void copyTranslucents(int width, int height) {
-		if (translucentDepthDirty) {
-			translucentDepthDirty = false;
-			GlStateManager._bindTexture(depthTexNoTranslucent.getTextureId());
-			dhTerrainFramebuffer.bindAsReadBuffer();
-			IrisRenderSystem.copyTexImage2D(GL20C.GL_TEXTURE_2D, 0, DepthBufferFormat.DEPTH32F.getGlInternalFormat(), 0, 0, width, height, 0);
-		} else {
-			DepthCopyStrategy.fastest(false).copy(dhTerrainFramebuffer, storedDepthTex, null, depthTexNoTranslucent.getTextureId(), width, height);
-		}
-	}
-
-	public GlFramebuffer getTranslucentFB() {
-		return dhWaterFramebuffer;
-	}
-
-	public GlFramebuffer getGenericFB() {
-		return dhGenericFramebuffer;
-	}
-
-	public int getDepthTexNoTranslucent() {
-		if (depthTexNoTranslucent == null) return 0;
-
-		return depthTexNoTranslucent.getTextureId();
-	}
-
-	public IDhApiGenericObjectShaderProgram getGenericShader() {
-		return genericShader;
-	}
-
-	public boolean avoidRenderingClouds() {
-		return pipeline != null && (pipeline.getDHCloudSetting() == CloudSetting.OFF || (pipeline.getDHCloudSetting() == CloudSetting.DEFAULT && pipeline.getCloudSetting() == CloudSetting.OFF));
-	}
+   public boolean avoidRenderingClouds() {
+      return this.pipeline != null
+         && (
+            this.pipeline.getDHCloudSetting() == CloudSetting.OFF
+               || this.pipeline.getDHCloudSetting() == CloudSetting.DEFAULT && this.pipeline.getCloudSetting() == CloudSetting.OFF
+         );
+   }
 }

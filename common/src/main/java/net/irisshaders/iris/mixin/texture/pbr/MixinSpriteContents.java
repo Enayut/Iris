@@ -14,43 +14,44 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(SpriteContents.class)
 public class MixinSpriteContents implements SpriteContentsExtension {
-	@Unique
-	private PBRSpriteHolder pbrHolder;
+   @Unique
+   private PBRSpriteHolder pbrHolder;
 
-	@Inject(method = "close()V", at = @At("TAIL"), remap = false)
-	private void iris$onTailClose(CallbackInfo ci) {
-		if (pbrHolder != null) {
-			pbrHolder.close();
-		}
-	}
+   @Inject(method = "close()V", at = @At("TAIL"), remap = false)
+   private void iris$onTailClose(CallbackInfo ci) {
+      if (this.pbrHolder != null) {
+         this.pbrHolder.close();
+      }
+   }
 
-	@Dynamic("Added by Sodium")
-	@SuppressWarnings("target")
-	@Inject(method = "sodium$setActive(Z)V", at = @At("TAIL"), remap = false, require = 0)
-	private void iris$onTailMarkActive(CallbackInfo ci) {
-		PBRSpriteHolder pbrHolder = ((SpriteContentsExtension) this).getPBRHolder();
-		if (pbrHolder != null) {
-			TextureAtlasSprite normalSprite = pbrHolder.getNormalSprite();
-			TextureAtlasSprite specularSprite = pbrHolder.getSpecularSprite();
-			if (normalSprite != null) {
-				SpriteUtil.INSTANCE.markSpriteActive(normalSprite);
-			}
-			if (specularSprite != null) {
-				SpriteUtil.INSTANCE.markSpriteActive(specularSprite);
-			}
-		}
-	}
+   @Inject(method = "sodium$setActive(Z)V", at = @At("TAIL"), remap = false, require = 0)
+   @Dynamic("Added by Sodium")
+   private void iris$onTailMarkActive(CallbackInfo ci) {
+      PBRSpriteHolder pbrHolder = this.getPBRHolder();
+      if (pbrHolder != null) {
+         TextureAtlasSprite normalSprite = pbrHolder.getNormalSprite();
+         TextureAtlasSprite specularSprite = pbrHolder.getSpecularSprite();
+         if (normalSprite != null) {
+            SpriteUtil.INSTANCE.markSpriteActive(normalSprite);
+         }
 
-	@Override
-	public PBRSpriteHolder getPBRHolder() {
-		return pbrHolder;
-	}
+         if (specularSprite != null) {
+            SpriteUtil.INSTANCE.markSpriteActive(specularSprite);
+         }
+      }
+   }
 
-	@Override
-	public PBRSpriteHolder getOrCreatePBRHolder() {
-		if (pbrHolder == null) {
-			pbrHolder = new PBRSpriteHolder();
-		}
-		return pbrHolder;
-	}
+   @Override
+   public PBRSpriteHolder getPBRHolder() {
+      return this.pbrHolder;
+   }
+
+   @Override
+   public PBRSpriteHolder getOrCreatePBRHolder() {
+      if (this.pbrHolder == null) {
+         this.pbrHolder = new PBRSpriteHolder();
+      }
+
+      return this.pbrHolder;
+   }
 }

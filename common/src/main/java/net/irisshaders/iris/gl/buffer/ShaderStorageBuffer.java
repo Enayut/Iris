@@ -1,83 +1,77 @@
 package net.irisshaders.iris.gl.buffer;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
+import java.nio.ByteBuffer;
 import net.irisshaders.iris.gl.GLDebug;
 import net.irisshaders.iris.gl.IrisRenderSystem;
-import org.lwjgl.opengl.GL43C;
-import org.lwjgl.opengl.GL46C;
 import org.lwjgl.system.MemoryUtil;
 
-import java.nio.ByteBuffer;
-
-// Do not extend GlResource, this is immutable.
 public class ShaderStorageBuffer {
-	protected final int index;
-	protected final BuiltShaderStorageInfo info;
-	protected final ByteBuffer content;
-	protected int id;
+   protected final int index;
+   protected final BuiltShaderStorageInfo info;
+   protected final ByteBuffer content;
+   protected int id = IrisRenderSystem.createBuffers();
 
-	public ShaderStorageBuffer(int index, BuiltShaderStorageInfo info) {
-		this.id = IrisRenderSystem.createBuffers();
-		if (info.content() != null) {
-			content = MemoryUtil.memAlloc(info.content().length);
-			content.put(info.content());
-			content.flip();
-		} else {
-			content = null;
-		}
-		GLDebug.nameObject(GL43C.GL_BUFFER, id, "SSBO " + index);
-		this.index = index;
-		this.info = info;
-	}
+   public ShaderStorageBuffer(int index, BuiltShaderStorageInfo info) {
+      if (info.content() != null) {
+         this.content = MemoryUtil.memAlloc(info.content().length);
+         this.content.put(info.content());
+         this.content.flip();
+      } else {
+         this.content = null;
+      }
 
-	public final int getIndex() {
-		return index;
-	}
+      GLDebug.nameObject(33504, this.id, "SSBO " + index);
+      this.index = index;
+      this.info = info;
+   }
 
-	public final long getSize() {
-		return info.size();
-	}
+   public final int getIndex() {
+      return this.index;
+   }
 
-	protected void destroy() {
-		IrisRenderSystem.bindBufferBase(GL43C.GL_SHADER_STORAGE_BUFFER, index, 0);
-		// DO NOT use the GlStateManager version here! On Linux, it will attempt to clear the data using BufferData and cause GL errors.
-		IrisRenderSystem.deleteBuffers(id);
-		MemoryUtil.memFree(content);
-	}
+   public final long getSize() {
+      return this.info.size();
+   }
 
-	public void bind() {
-		IrisRenderSystem.bindBufferBase(GL43C.GL_SHADER_STORAGE_BUFFER, index, id);
-	}
+   protected void destroy() {
+      IrisRenderSystem.bindBufferBase(37074, this.index, 0);
+      IrisRenderSystem.deleteBuffers(this.id);
+      MemoryUtil.memFree(this.content);
+   }
 
-	public void resizeIfRelative(int width, int height) {
-		if (!info.relative()) return;
+   public void bind() {
+      IrisRenderSystem.bindBufferBase(37074, this.index, this.id);
+   }
 
-		IrisRenderSystem.deleteBuffers(id);
-		int newId = GlStateManager._glGenBuffers();
-		GlStateManager._glBindBuffer(GL43C.GL_SHADER_STORAGE_BUFFER, newId);
+   public void resizeIfRelative(int width, int height) {
+      if (this.info.relative()) {
+         IrisRenderSystem.deleteBuffers(this.id);
+         int newId = GlStateManager._glGenBuffers();
+         GlStateManager._glBindBuffer(37074, newId);
+         long newWidth = (long)(width * this.info.scaleX());
+         long newHeight = (long)(height * this.info.scaleY());
+         long finalSize = newHeight * newWidth * this.info.size();
+         IrisRenderSystem.bufferStorage(37074, finalSize, 0);
+         IrisRenderSystem.clearBufferSubData(37074, 33321, 0L, finalSize, 6403, 5120, new int[]{0});
+         IrisRenderSystem.bindBufferBase(37074, this.index, newId);
+         this.id = newId;
+      }
+   }
 
-		// Calculation time
-		long newWidth = (long) (width * info.scaleX());
-		long newHeight = (long) (height * info.scaleY());
-		long finalSize = (newHeight * newWidth) * info.size();
-		IrisRenderSystem.bufferStorage(GL43C.GL_SHADER_STORAGE_BUFFER, finalSize, 0);
-		IrisRenderSystem.clearBufferSubData(GL43C.GL_SHADER_STORAGE_BUFFER, GL43C.GL_R8, 0, finalSize, GL43C.GL_RED, GL43C.GL_BYTE, new int[]{0});
-		IrisRenderSystem.bindBufferBase(GL43C.GL_SHADER_STORAGE_BUFFER, index, newId);
-		id = newId;
-	}
+   public int getId() {
+      return this.id;
+   }
 
-	public int getId() {
-		return id;
-	}
+   public void createStatic() {
+      GlStateManager._glBindBuffer(37074, this.getId());
+      IrisRenderSystem.bufferStorage(37074, this.info.size(), this.content == null ? 0 : 256);
+      if (this.content != null) {
+         GlStateManager._glBufferSubData(37074, 0L, this.content);
+      } else {
+         IrisRenderSystem.clearBufferSubData(37074, 33321, 0L, this.info.size(), 6403, 5120, new int[]{0});
+      }
 
-	public void createStatic() {
-		GlStateManager._glBindBuffer(GL43C.GL_SHADER_STORAGE_BUFFER, getId());
-		IrisRenderSystem.bufferStorage(GL43C.GL_SHADER_STORAGE_BUFFER, info.size(), content == null ? 0 : GL46C.GL_DYNAMIC_STORAGE_BIT);
-		if (content != null) {
-			GlStateManager._glBufferSubData(GL43C.GL_SHADER_STORAGE_BUFFER, 0, content);
-		} else {
-			IrisRenderSystem.clearBufferSubData(GL43C.GL_SHADER_STORAGE_BUFFER, GL43C.GL_R8, 0, info.size(), GL43C.GL_RED, GL43C.GL_BYTE, new int[]{0});
-		}
-		bind();
-	}
+      this.bind();
+   }
 }

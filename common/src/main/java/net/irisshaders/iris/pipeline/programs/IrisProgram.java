@@ -1,16 +1,14 @@
 package net.irisshaders.iris.pipeline.programs;
 
-import com.mojang.blaze3d.opengl.GlRenderPass;
-import com.mojang.blaze3d.textures.GpuTextureView;
-
-import java.util.HashMap;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout.UniformDescription;
+import java.util.List;
 
 public interface IrisProgram {
-	void iris$setupState(HashMap<String, GlRenderPass.TextureViewAndSampler> samplers, GpuTextureView albedoTex);
+   void iris$setupState(List<UniformDescription> var1);
 
-	void iris$clearState();
+   void iris$clearState();
 
-	int iris$getBlockIndex(int program, CharSequence uniformBlockName);
+   int iris$getBlockIndex(int var1, CharSequence var2);
 
-	boolean iris$isSetUp();
+   boolean iris$isSetUp();
 }

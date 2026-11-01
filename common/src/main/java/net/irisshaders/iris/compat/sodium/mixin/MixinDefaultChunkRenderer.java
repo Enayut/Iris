@@ -1,26 +1,73 @@
 package net.irisshaders.iris.compat.sodium.mixin;
 
-import net.caffeinemc.mods.sodium.client.gui.SodiumOptions;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import net.caffeinemc.mods.sodium.client.gui.SodiumOptions.PerformanceSettings;
 import net.caffeinemc.mods.sodium.client.render.chunk.DefaultChunkRenderer;
+import net.caffeinemc.mods.sodium.client.render.chunk.terrain.DefaultTerrainRenderPasses;
+import net.caffeinemc.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
+import net.caffeinemc.mods.sodium.client.util.FogParameters;
+import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.shadows.ShadowRenderingState;
+import net.minecraft.client.renderer.oit.OitStage;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(DefaultChunkRenderer.class)
 public class MixinDefaultChunkRenderer {
-	@Redirect(method = "render", at = @At(value = "FIELD", target = "Lnet/caffeinemc/mods/sodium/client/gui/SodiumOptions$PerformanceSettings;useBlockFaceCulling:Z"), remap = false)
-	private boolean iris$disableBlockFaceCullingInShadowPass(SodiumOptions.PerformanceSettings instance) {
-		if (ShadowRenderingState.areShadowsCurrentlyBeingRendered()) return false;
-		return instance.useBlockFaceCulling;
-	}
+   @Shadow
+   @Final
+   private boolean[] shouldDraw;
+   @Unique
+   private final boolean[] shouldDrawShadow = new boolean[DefaultTerrainRenderPasses.ALL.length];
 
-	// TODO IMS: Something about this feels... wrong.
-	@ModifyArg(method = "prepareIndexedTessellation", index = 2, at = @At(value = "INVOKE", target = "Lnet/caffeinemc/mods/sodium/client/render/chunk/DefaultChunkRenderer;createRegionTessellation(Lnet/caffeinemc/mods/sodium/client/gl/device/CommandList;Lnet/caffeinemc/mods/sodium/client/render/chunk/region/RenderRegion$DeviceResources;Z)Lnet/caffeinemc/mods/sodium/client/gl/tessellation/GlTessellation;"), remap = false)
-	private boolean doNotSortInShadow(boolean useSharedIndexBuffer) {
-		if (ShadowRenderingState.areShadowsCurrentlyBeingRendered()) return false;
+   @Redirect(
+      method = {"prepare", "render"},
+      at = @At(value = "FIELD", target = "Lnet/caffeinemc/mods/sodium/client/render/chunk/DefaultChunkRenderer;shouldDraw:[Z")
+   )
+   private boolean[] change(DefaultChunkRenderer instance) {
+      return ShadowRenderingState.areShadowsCurrentlyBeingRendered() ? this.shouldDrawShadow : this.shouldDraw;
+   }
 
-		return useSharedIndexBuffer;
-	}
+   @Redirect(
+      method = "prepare",
+      at = @At(value = "FIELD", target = "Lnet/caffeinemc/mods/sodium/client/gui/SodiumOptions$PerformanceSettings;useBlockFaceCulling:Z"),
+      remap = false
+   )
+   private boolean iris$disableBlockFaceCullingInShadowPass(PerformanceSettings instance) {
+      return ShadowRenderingState.areShadowsCurrentlyBeingRendered() ? false : instance.useBlockFaceCulling;
+   }
+
+   @WrapOperation(
+      method = "render",
+      at = @At(
+         value = "INVOKE",
+         target = "Lnet/caffeinemc/mods/sodium/client/render/chunk/ShaderChunkRenderer;begin(Lnet/caffeinemc/mods/sodium/client/render/chunk/terrain/TerrainRenderPass;Lnet/caffeinemc/mods/sodium/client/util/FogParameters;Lcom/mojang/renderpearl/api/textures/GpuSampler;Lnet/minecraft/client/renderer/oit/OitStage;)V"
+      )
+   )
+   private void iris$forceNearest(
+      DefaultChunkRenderer instance,
+      TerrainRenderPass terrainRenderPass,
+      FogParameters fogParameters,
+      GpuSampler gpuSampler,
+      OitStage oitStage,
+      Operation<Void> original
+   ) {
+      original.call(
+         new Object[]{
+            instance,
+            terrainRenderPass,
+            fogParameters,
+            Iris.isPackInUseQuick() ? RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST, true) : gpuSampler,
+            oitStage
+         }
+      );
+   }
 }

@@ -6,6 +6,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(TextureAtlasSprite.class)
 public interface TextureAtlasSpriteAccessor {
-	@Accessor
-	int getPadding();
+   @Accessor
+   int getPadding();
 }

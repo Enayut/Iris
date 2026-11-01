@@ -65,6 +65,8 @@ dependencies {
     addRuntimeFabricModule("fabric-resource-loader-v0")
     addRuntimeFabricModule("fabric-lifecycle-events-v1")
     addRuntimeFabricModule("fabric-renderer-api-v1")
+    // MixinExtendedBlockModelSubmit (upstream) targets fabric-renderer-api-v1 classes at compile time
+    compileOnly(fabricApi.module("fabric-renderer-api-v1", FABRIC_API_VERSION))
 
     implementation(SODIUM_DEPENDENCY_FABRIC)
     implementAndInclude("org.antlr:antlr4-runtime:4.13.1")

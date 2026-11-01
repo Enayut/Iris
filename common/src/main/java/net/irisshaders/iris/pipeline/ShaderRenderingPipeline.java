@@ -4,9 +4,10 @@ import net.irisshaders.iris.pipeline.programs.ShaderMap;
 import net.irisshaders.iris.uniforms.FrameUpdateNotifier;
 
 public interface ShaderRenderingPipeline extends WorldRenderingPipeline {
-	ShaderMap getShaderMap();
+   ShaderMap getShaderMap();
 
-	FrameUpdateNotifier getFrameUpdateNotifier();
+   @Override
+   FrameUpdateNotifier getFrameUpdateNotifier();
 
-	boolean shouldOverrideShaders();
+   boolean shouldOverrideShaders();
 }

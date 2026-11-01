@@ -1,7 +1,7 @@
 package net.irisshaders.iris.helpers;
 
 public interface VertexBufferHelper {
-	void saveBinding();
+   void saveBinding();
 
-	void restoreBinding();
+   void restoreBinding();
 }

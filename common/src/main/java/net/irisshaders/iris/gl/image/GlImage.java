@@ -1,6 +1,6 @@
 package net.irisshaders.iris.gl.image;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.irisshaders.iris.gl.GLDebug;
 import net.irisshaders.iris.gl.GlResource;
 import net.irisshaders.iris.gl.IrisRenderSystem;
@@ -9,140 +9,162 @@ import net.irisshaders.iris.gl.texture.PixelFormat;
 import net.irisshaders.iris.gl.texture.PixelType;
 import net.irisshaders.iris.gl.texture.TextureType;
 import org.lwjgl.opengl.ARBClearTexture;
-import org.lwjgl.opengl.GL11C;
-import org.lwjgl.opengl.GL13C;
-import org.lwjgl.opengl.GL20C;
-import org.lwjgl.opengl.GL30C;
-import org.lwjgl.opengl.GL43C;
 
 public class GlImage extends GlResource {
-	protected final String name;
-	protected final String samplerName;
-	protected final TextureType target;
-	protected final PixelFormat format;
-	protected final InternalTextureFormat internalTextureFormat;
-	protected final PixelType pixelType;
-	private final boolean clear;
+   protected final String name;
+   protected final String samplerName;
+   protected final TextureType target;
+   protected final PixelFormat format;
+   protected final InternalTextureFormat internalTextureFormat;
+   protected final PixelType pixelType;
+   private final boolean clear;
 
-	public GlImage(String name, String samplerName, TextureType target, PixelFormat format, InternalTextureFormat internalFormat, PixelType pixelType, boolean clear, int width, int height, int depth) {
-		super(IrisRenderSystem.createTexture(target.getGlType()));
+   public GlImage(
+      String name,
+      String samplerName,
+      TextureType target,
+      PixelFormat format,
+      InternalTextureFormat internalFormat,
+      PixelType pixelType,
+      boolean clear,
+      int width,
+      int height,
+      int depth
+   ) {
+      super(IrisRenderSystem.createTexture(target.getGlType()));
+      this.name = name;
+      this.samplerName = samplerName;
+      this.target = target;
+      this.format = format;
+      this.internalTextureFormat = internalFormat;
+      this.pixelType = pixelType;
+      this.clear = clear;
+      GLDebug.nameObject(5890, this.getGlId(), name);
+      IrisRenderSystem.bindTextureForSetup(target.getGlType(), this.getGlId());
+      target.apply(this.getGlId(), width, height, depth, internalFormat.getGlFormat(), format.getGlFormat(), pixelType.getGlFormat(), null);
+      int texture = this.getGlId();
+      this.setup(texture, width, height, depth);
+      IrisRenderSystem.bindTextureForSetup(target.getGlType(), 0);
+   }
 
-		this.name = name;
-		this.samplerName = samplerName;
-		this.target = target;
-		this.format = format;
-		this.internalTextureFormat = internalFormat;
-		this.pixelType = pixelType;
-		this.clear = clear;
+   protected void setup(int texture, int width, int height, int depth) {
+      boolean isInteger = this.internalTextureFormat.getPixelFormat().isInteger();
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 10241, isInteger ? 9728 : 9729);
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 10240, isInteger ? 9728 : 9729);
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 10242, 33071);
+      if (height > 0) {
+         IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 10243, 33071);
+      }
 
-		GLDebug.nameObject(GL43C.GL_TEXTURE, getGlId(), name);
+      if (depth > 0) {
+         IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 32882, 33071);
+      }
 
-		IrisRenderSystem.bindTextureForSetup(target.getGlType(), getGlId());
-		target.apply(getGlId(), width, height, depth, internalFormat.getGlFormat(), format.getGlFormat(), pixelType.getGlFormat(), null);
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 33085, 0);
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 33082, 0);
+      IrisRenderSystem.texParameteri(texture, this.target.getGlType(), 33083, 0);
+      IrisRenderSystem.texParameterf(texture, this.target.getGlType(), 34049, 0.0F);
+      this.clear();
+   }
 
-		int texture = getGlId();
+   public void clear() {
+      ARBClearTexture.glClearTexImage(this.getGlId(), 0, this.format.getGlFormat(), this.pixelType.getGlFormat(), (int[])null);
+   }
 
-		setup(texture, width, height, depth);
+   public String getName() {
+      return this.name;
+   }
 
-		IrisRenderSystem.bindTextureForSetup(target.getGlType(), 0);
-	}
+   public String getSamplerName() {
+      return this.samplerName;
+   }
 
-	protected void setup(int texture, int width, int height, int depth) {
-		boolean isInteger = internalTextureFormat.getPixelFormat().isInteger();
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL11C.GL_TEXTURE_MIN_FILTER, isInteger ? GL11C.GL_NEAREST : GL11C.GL_LINEAR);
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL11C.GL_TEXTURE_MAG_FILTER, isInteger ? GL11C.GL_NEAREST : GL11C.GL_LINEAR);
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL11C.GL_TEXTURE_WRAP_S, GL13C.GL_CLAMP_TO_EDGE);
+   public TextureType getTarget() {
+      return this.target;
+   }
 
-		if (height > 0) {
-			IrisRenderSystem.texParameteri(texture, target.getGlType(), GL11C.GL_TEXTURE_WRAP_T, GL13C.GL_CLAMP_TO_EDGE);
-		}
+   public boolean shouldClear() {
+      return this.clear;
+   }
 
-		if (depth > 0) {
-			IrisRenderSystem.texParameteri(texture, target.getGlType(), GL30C.GL_TEXTURE_WRAP_R, GL13C.GL_CLAMP_TO_EDGE);
-		}
+   public int getId() {
+      return this.getGlId();
+   }
 
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL20C.GL_TEXTURE_MAX_LEVEL, 0);
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL20C.GL_TEXTURE_MIN_LOD, 0);
-		IrisRenderSystem.texParameteri(texture, target.getGlType(), GL20C.GL_TEXTURE_MAX_LOD, 0);
-		IrisRenderSystem.texParameterf(texture, target.getGlType(), GL20C.GL_TEXTURE_LOD_BIAS, 0.0F);
+   public void updateNewSize(int width, int height) {
+   }
 
-		ARBClearTexture.glClearTexImage(texture, 0, format.getGlFormat(), pixelType.getGlFormat(), (int[]) null);
-	}
+   @Override
+   protected void destroyInternal() {
+      GlStateManager._deleteTexture(this.getGlId());
+   }
 
-	public String getName() {
-		return name;
-	}
+   public InternalTextureFormat getInternalFormat() {
+      return this.internalTextureFormat;
+   }
 
-	public String getSamplerName() {
-		return samplerName;
-	}
+   @Override
+   public String toString() {
+      return "GlImage name " + this.name + " format " + this.format + "internalformat " + this.internalTextureFormat + " pixeltype " + this.pixelType;
+   }
 
-	public TextureType getTarget() {
-		return target;
-	}
+   public PixelFormat getFormat() {
+      return this.format;
+   }
 
-	public boolean shouldClear() {
-		return clear;
-	}
+   public PixelType getPixelType() {
+      return this.pixelType;
+   }
 
-	public int getId() {
-		return getGlId();
-	}
+   public static class Relative extends GlImage {
+      private final float relativeHeight;
+      private final float relativeWidth;
 
-	/**
-	 * This makes the image aware of a new render target. Depending on the image's properties, it may not follow these targets.
-	 *
-	 * @param width  The width of the main render target.
-	 * @param height The height of the main render target.
-	 */
-	public void updateNewSize(int width, int height) {
+      public Relative(
+         String name,
+         String samplerName,
+         PixelFormat format,
+         InternalTextureFormat internalFormat,
+         PixelType pixelType,
+         boolean clear,
+         float relativeWidth,
+         float relativeHeight,
+         int currentWidth,
+         int currentHeight
+      ) {
+         super(
+            name,
+            samplerName,
+            TextureType.TEXTURE_2D,
+            format,
+            internalFormat,
+            pixelType,
+            clear,
+            (int)(currentWidth * relativeWidth),
+            (int)(currentHeight * relativeHeight),
+            0
+         );
+         this.relativeWidth = relativeWidth;
+         this.relativeHeight = relativeHeight;
+      }
 
-	}
-
-	@Override
-	protected void destroyInternal() {
-		GlStateManager._deleteTexture(getGlId());
-	}
-
-	public InternalTextureFormat getInternalFormat() {
-		return internalTextureFormat;
-	}
-
-	@Override
-	public String toString() {
-		return "GlImage name " + name + " format " + format + "internalformat " + internalTextureFormat + " pixeltype " + pixelType;
-	}
-
-	public PixelFormat getFormat() {
-		return format;
-	}
-
-	public PixelType getPixelType() {
-		return pixelType;
-	}
-
-	public static class Relative extends GlImage {
-
-		private final float relativeHeight;
-		private final float relativeWidth;
-
-		public Relative(String name, String samplerName, PixelFormat format, InternalTextureFormat internalFormat, PixelType pixelType, boolean clear, float relativeWidth, float relativeHeight, int currentWidth, int currentHeight) {
-			super(name, samplerName, TextureType.TEXTURE_2D, format, internalFormat, pixelType, clear, (int) (currentWidth * relativeWidth), (int) (currentHeight * relativeHeight), 0);
-
-			this.relativeWidth = relativeWidth;
-			this.relativeHeight = relativeHeight;
-		}
-
-		@Override
-		public void updateNewSize(int width, int height) {
-			IrisRenderSystem.bindTextureForSetup(target.getGlType(), getGlId());
-			target.apply(getGlId(), (int) (width * relativeWidth), (int) (height * relativeHeight), 0, internalTextureFormat.getGlFormat(), format.getGlFormat(), pixelType.getGlFormat(), null);
-
-			int texture = getGlId();
-
-			setup(texture, width, height, 0);
-
-			IrisRenderSystem.bindTextureForSetup(target.getGlType(), 0);
-		}
-	}
+      @Override
+      public void updateNewSize(int width, int height) {
+         IrisRenderSystem.bindTextureForSetup(this.target.getGlType(), this.getGlId());
+         this.target
+            .apply(
+               this.getGlId(),
+               (int)(width * this.relativeWidth),
+               (int)(height * this.relativeHeight),
+               0,
+               this.internalTextureFormat.getGlFormat(),
+               this.format.getGlFormat(),
+               this.pixelType.getGlFormat(),
+               null
+            );
+         int texture = this.getGlId();
+         this.setup(texture, width, height, 0);
+         IrisRenderSystem.bindTextureForSetup(this.target.getGlType(), 0);
+      }
+   }
 }

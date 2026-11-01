@@ -1,14 +1,14 @@
 package net.irisshaders.iris.mixin.texture;
 
-import net.minecraft.client.renderer.texture.SpriteContents;
+import net.minecraft.client.renderer.texture.SpriteContents.FrameInfo;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(SpriteContents.FrameInfo.class)
+@Mixin(FrameInfo.class)
 public interface SpriteContentsFrameInfoAccessor {
-	@Accessor("index")
-	int getIndex();
+   @Accessor("index")
+   int getIndex();
 
-	@Accessor("time")
-	int getTime();
+   @Accessor("time")
+   int getTime();
 }

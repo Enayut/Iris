@@ -1,94 +1,87 @@
 package net.irisshaders.iris.pbr;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import java.nio.ByteBuffer;
 import net.irisshaders.iris.mixin.GlStateManagerAccessor;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.opengl.GL20C;
-
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 
 public class TextureInfoCache {
-	public static final TextureInfoCache INSTANCE = new TextureInfoCache();
+   public static final TextureInfoCache INSTANCE = new TextureInfoCache();
+   private final Int2ObjectMap<TextureInfoCache.TextureInfo> cache = new Int2ObjectOpenHashMap();
 
-	private final Int2ObjectMap<TextureInfo> cache = new Int2ObjectOpenHashMap<>();
+   private TextureInfoCache() {
+   }
 
-	private TextureInfoCache() {
-	}
+   public TextureInfoCache.TextureInfo getInfo(int id) {
+      TextureInfoCache.TextureInfo info = (TextureInfoCache.TextureInfo)this.cache.get(id);
+      if (info == null) {
+         info = new TextureInfoCache.TextureInfo(id);
+         this.cache.put(id, info);
+      }
 
-	public TextureInfo getInfo(int id) {
-		TextureInfo info = cache.get(id);
-		if (info == null) {
-			info = new TextureInfo(id);
-			cache.put(id, info);
-		}
-		return info;
-	}
+      return info;
+   }
 
-	public void onTexImage2D(int target, int level, int internalformat, int width, int height, int border,
-							 int format, int type, @Nullable ByteBuffer pixels) {
-		if (level == 0) {
-			int id = GlStateManagerAccessor.getTEXTURES()[GlStateManagerAccessor.getActiveTexture()].binding;
-			TextureInfo info = getInfo(id);
-			info.internalFormat = internalformat;
-			info.width = width;
-			info.height = height;
-		}
-	}
+   public void onTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, @Nullable ByteBuffer pixels) {
+      if (level == 0) {
+         int id = GlStateManagerAccessor.getTEXTURES()[GlStateManagerAccessor.getActiveTexture()].binding;
+         TextureInfoCache.TextureInfo info = this.getInfo(id);
+         info.internalFormat = internalformat;
+         info.width = width;
+         info.height = height;
+      }
+   }
 
-	public void onDeleteTexture(int id) {
-		cache.remove(id);
-	}
+   public void onDeleteTexture(int id) {
+      this.cache.remove(id);
+   }
 
-	public static class TextureInfo {
-		private final int id;
-		private int internalFormat = -1;
-		private int width = -1;
-		private int height = -1;
+   public static class TextureInfo {
+      private final int id;
+      private int internalFormat = -1;
+      private int width = -1;
+      private int height = -1;
 
-		private TextureInfo(int id) {
-			this.id = id;
-		}
+      private TextureInfo(int id) {
+         this.id = id;
+      }
 
-		public int getId() {
-			return id;
-		}
+      public int getId() {
+         return this.id;
+      }
 
-		public int getInternalFormat() {
-			if (internalFormat == -1) {
-				internalFormat = fetchLevelParameter(GL20C.GL_TEXTURE_INTERNAL_FORMAT);
-			}
-			return internalFormat;
-		}
+      public int getInternalFormat() {
+         if (this.internalFormat == -1) {
+            this.internalFormat = this.fetchLevelParameter(4099);
+         }
 
-		public int getWidth() {
-			if (width == -1) {
-				width = fetchLevelParameter(GL20C.GL_TEXTURE_WIDTH);
-			}
-			return width;
-		}
+         return this.internalFormat;
+      }
 
-		public int getHeight() {
-			if (height == -1) {
-				height = fetchLevelParameter(GL20C.GL_TEXTURE_HEIGHT);
-			}
-			return height;
-		}
+      public int getWidth() {
+         if (this.width == -1) {
+            this.width = this.fetchLevelParameter(4096);
+         }
 
-		private int fetchLevelParameter(int pname) {
-			// Keep track of what texture was bound before
-			int previousTextureBinding = GlStateManager._getInteger(GL20C.GL_TEXTURE_BINDING_2D);
+         return this.width;
+      }
 
-			// Bind this texture and grab the parameter from it.
-			GlStateManager._bindTexture(id);
-			int parameter = GlStateManager._getTexLevelParameter(GL20C.GL_TEXTURE_2D, 0, pname);
+      public int getHeight() {
+         if (this.height == -1) {
+            this.height = this.fetchLevelParameter(4097);
+         }
 
-			// Make sure to re-bind the previous texture to avoid issues.
-			GlStateManager._bindTexture(previousTextureBinding);
+         return this.height;
+      }
 
-			return parameter;
-		}
-	}
+      private int fetchLevelParameter(int pname) {
+         int previousTextureBinding = GlStateManager._getInteger(32873);
+         GlStateManager._bindTexture(this.id);
+         int parameter = GlStateManager._getTexLevelParameter(3553, 0, pname);
+         GlStateManager._bindTexture(previousTextureBinding);
+         return parameter;
+      }
+   }
 }

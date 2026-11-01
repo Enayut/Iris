@@ -1,13 +1,13 @@
 package net.irisshaders.iris.vertices.views;
 
 public interface PolygonView {
-	float x(int index);
+   float x(int var1);
 
-	float y(int index);
+   float y(int var1);
 
-	float z(int index);
+   float z(int var1);
 
-	float u(int index);
+   float u(int var1);
 
-	float v(int index);
+   float v(int var1);
 }

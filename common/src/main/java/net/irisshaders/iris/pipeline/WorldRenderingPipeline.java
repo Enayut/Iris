@@ -1,13 +1,14 @@
 package net.irisshaders.iris.pipeline;
 
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
+import java.util.OptionalInt;
+import java.util.Set;
 import net.irisshaders.iris.compat.dh.DHCompat;
 import net.irisshaders.iris.features.FeatureFlags;
 import net.irisshaders.iris.gl.texture.TextureType;
 import net.irisshaders.iris.helpers.Tri;
 import net.irisshaders.iris.mixin.LevelRendererAccessor;
-import net.irisshaders.iris.pipeline.programs.SodiumPrograms;
 import net.irisshaders.iris.shaderpack.properties.CloudSetting;
 import net.irisshaders.iris.shaderpack.properties.ParticleRenderingSettings;
 import net.irisshaders.iris.shaderpack.texture.TextureStage;
@@ -16,88 +17,88 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.gui.components.debug.DebugScreenDisplayer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 
-import java.util.OptionalInt;
-
 public interface WorldRenderingPipeline {
-	void beginLevelRendering();
+   void beginLevelRendering();
 
-    void renderShadows(LevelRendererAccessor worldRenderer, Camera playerCamera, CameraRenderState renderState);
+   void renderShadows(LevelRendererAccessor var1, Camera var2, CameraRenderState var3);
 
-    void addDebugText(DebugScreenDisplayer messages);
+   void addDebugText(DebugScreenDisplayer var1);
 
-	OptionalInt getForcedShadowRenderDistanceChunksForDisplay();
+   OptionalInt getForcedShadowRenderDistanceChunksForDisplay();
 
-	Object2ObjectMap<Tri<String, TextureType, TextureStage>, String> getTextureMap();
+   Object2ObjectMap<Tri<String, TextureType, TextureStage>, String> getTextureMap();
 
-	WorldRenderingPhase getPhase();
+   default Set<String> getTextureOverrides(TextureStage stage) {
+      return Set.of();
+   }
 
-	void setPhase(WorldRenderingPhase phase);
+   WorldRenderingPhase getPhase();
 
-	void setOverridePhase(WorldRenderingPhase phase);
+   void setPhase(WorldRenderingPhase var1);
 
-	int getCurrentNormalTexture();
+   void setOverridePhase(WorldRenderingPhase var1);
 
-	int getCurrentSpecularTexture();
+   int getCurrentNormalTexture();
 
-	void onSetAlbedoTex(GpuTextureView id);
+   int getCurrentSpecularTexture();
 
-	void beginHand();
+   void onSetAlbedoTex(GpuTextureView var1);
 
-	void beginTranslucents();
+   void beginHand();
 
-	void finalizeLevelRendering();
+   void beginTranslucents();
 
-	void finalizeGameRendering();
+   void finalizeLevelRendering();
 
-	void destroy();
+   void finalizeGameRendering();
 
-	SodiumPrograms getSodiumPrograms();
+   void destroy();
 
-	FrameUpdateNotifier getFrameUpdateNotifier();
+   FrameUpdateNotifier getFrameUpdateNotifier();
 
-	boolean shouldDisableVanillaEntityShadows();
+   boolean shouldDisableVanillaEntityShadows();
 
-	boolean shouldDisableDirectionalShading();
+   boolean shouldDisableDirectionalShading();
 
-	boolean shouldDisableFrustumCulling();
+   boolean shouldDisableFrustumCulling();
 
-	boolean shouldDisableOcclusionCulling();
+   boolean shouldDisableOcclusionCulling();
 
-	CloudSetting getCloudSetting();
+   CloudSetting getCloudSetting();
 
-	boolean shouldRenderUnderwaterOverlay();
+   boolean shouldRenderUnderwaterOverlay();
 
-	boolean shouldRenderVignette();
+   boolean shouldRenderVignette();
 
-	boolean shouldRenderSun();
+   boolean shouldRenderSun();
 
-	boolean shouldRenderWeather();
+   boolean shouldRenderWeather();
 
-	boolean shouldRenderWeatherParticles();
+   boolean shouldRenderWeatherParticles();
 
-	boolean shouldRenderMoon();
+   boolean shouldRenderMoon();
 
-	boolean shouldRenderStars();
+   boolean shouldRenderStars();
 
-	boolean shouldRenderSkyDisc();
+   boolean shouldRenderSkyDisc();
 
-	boolean shouldWriteRainAndSnowToDepthBuffer();
+   boolean shouldWriteRainAndSnowToDepthBuffer();
 
-	ParticleRenderingSettings getParticleRenderingSettings();
+   ParticleRenderingSettings getParticleRenderingSettings();
 
-	boolean allowConcurrentCompute();
+   boolean allowConcurrentCompute();
 
-	boolean hasFeature(FeatureFlags flags);
+   boolean hasFeature(FeatureFlags var1);
 
-	float getSunPathRotation();
+   float getSunPathRotation();
 
-	DHCompat getDHCompat();
+   DHCompat getDHCompat();
 
-	void setIsMainBound(boolean mainBound);
+   void setIsMainBound(boolean var1);
 
-    void onBeginClear();
+   void onBeginClear();
 
-    boolean supportsEndFlash();
+   boolean supportsEndFlash();
 
-	int getAlbedoTex();
+   int getAlbedoTex();
 }

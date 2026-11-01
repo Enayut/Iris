@@ -4,10 +4,10 @@ import com.mojang.blaze3d.platform.NativeImage;
 import org.jetbrains.annotations.Nullable;
 
 public interface CustomMipmapGenerator {
-	NativeImage[] generateMipLevels(NativeImage[] image, int mipLevel);
+   NativeImage[] generateMipLevels(NativeImage[] var1, int var2);
 
-	interface Provider {
-		@Nullable
-		CustomMipmapGenerator getMipmapGenerator();
-	}
+   interface Provider {
+      @Nullable
+      CustomMipmapGenerator getMipmapGenerator();
+   }
 }

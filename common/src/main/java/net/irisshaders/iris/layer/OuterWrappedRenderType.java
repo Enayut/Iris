@@ -1,135 +1,112 @@
 package net.irisshaders.iris.layer;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import net.irisshaders.iris.mixin.rendertype.RenderTypeAccessor;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import java.util.Objects;
+import java.util.Optional;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.PreparedRenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Objects;
-import java.util.Optional;
-
 public class OuterWrappedRenderType extends RenderType {
-	private static final RenderSetup FAKE_SETUP = RenderSetup.builder(RenderPipelines.GUI_TEXTURED).createRenderSetup();
-	private final RenderingWrapper extra;
-	private final RenderType wrapped;
+   private static final RenderSetup FAKE_SETUP = RenderSetup.builder(RenderPipelines.GUI_TEXTURED).createRenderSetup();
+   private final RenderingWrapper extra;
+   private final RenderType wrapped;
 
-	public OuterWrappedRenderType(String name, RenderType wrapped, RenderingWrapper extra) {
-		super(name, FAKE_SETUP);
+   public OuterWrappedRenderType(String name, RenderType wrapped, RenderingWrapper extra) {
+      super(name, FAKE_SETUP);
+      this.extra = extra;
+      this.wrapped = wrapped;
+   }
 
-		this.extra = extra;
-		this.wrapped = wrapped;
-	}
+   public static OuterWrappedRenderType wrapExactlyOnce(String name, RenderType wrapped, RenderingWrapper extra) {
+      while (wrapped instanceof OuterWrappedRenderType) {
+         wrapped = ((OuterWrappedRenderType)wrapped).unwrap();
+      }
 
-	public static OuterWrappedRenderType wrapExactlyOnce(String name, RenderType wrapped, RenderingWrapper extra) {
-		while (wrapped instanceof OuterWrappedRenderType) {
-			wrapped = ((OuterWrappedRenderType) wrapped).unwrap();
-		}
+      return new OuterWrappedRenderType(name, wrapped, extra);
+   }
 
-		return new OuterWrappedRenderType(name, wrapped, extra);
-	}
+   private RenderType unwrap() {
+      return this.wrapped;
+   }
 
-	private RenderType unwrap() {
-		return wrapped;
-	}
+   public boolean hasBlending() {
+      return this.wrapped.hasBlending();
+   }
 
-	@Override
-	public boolean hasBlending() {
-		return wrapped.hasBlending();
-	}
+   public boolean forceSolidModelPhase() {
+      return this.wrapped.forceSolidModelPhase();
+   }
 
-	@Override
-	public Optional<RenderType> outline() {
-		return this.wrapped.outline();
-	}
+   public Optional<RenderType> outline() {
+      return this.wrapped.outline();
+   }
 
-	@Override
-	public boolean isOutline() {
-		return this.wrapped.isOutline();
-	}
+   public boolean isOutline() {
+      return this.wrapped.isOutline();
+   }
 
-	@Override
-	public RenderPipeline pipeline() {
-		return wrapped.pipeline();
-	}
+   public RenderPipeline pipeline() {
+      return this.wrapped.pipeline();
+   }
 
-	@Override
-	public void draw(MeshData meshData) {
-		extra.setup();
-		wrapped.draw(meshData);
-		extra.clear();
-	}
+   public PreparedRenderType prepare() {
+      PreparedRenderType x = this.wrapped.prepare();
+      ((WrappedPreparedRenderType)(Object)x).setRenderWrapper(this.extra);
+      return x;
+   }
 
-	@Override
-	public boolean sortOnUpload() {
-		return wrapped.sortOnUpload();
-	}
+   public boolean sortOnUpload() {
+      return this.wrapped.sortOnUpload();
+   }
 
-	@Override
-	public RenderPipeline iris$getPipeline() {
-		return wrapped.iris$getPipeline();
-	}
+   public RenderPipeline iris$getPipeline() {
+      return this.wrapped.iris$getPipeline();
+   }
 
-	@Override
-	public RenderTarget iris$getRenderTarget() {
-		return wrapped.iris$getRenderTarget();
-	}
+   public RenderTarget iris$getRenderTarget() {
+      return this.wrapped.iris$getRenderTarget();
+   }
 
-	@Override
-	public boolean canConsolidateConsecutiveGeometry() {
-		return wrapped.canConsolidateConsecutiveGeometry();
-	}
+   public boolean canConsolidateConsecutiveGeometry() {
+      return this.wrapped.canConsolidateConsecutiveGeometry();
+   }
 
-	@Override
-	public boolean affectsCrumbling() {
-		return wrapped.affectsCrumbling();
-	}
+   public boolean affectsCrumbling() {
+      return this.wrapped.affectsCrumbling();
+   }
 
-	@Override
-	public int bufferSize() {
-		return wrapped.bufferSize();
-	}
+   public VertexFormat format() {
+      return this.wrapped.format();
+   }
 
-	@Override
-	public VertexFormat format() {
-		return wrapped.format();
-	}
+   public PrimitiveTopology primitiveTopology() {
+      return this.wrapped.primitiveTopology();
+   }
 
-	@Override
-	public VertexFormat.Mode mode() {
-		return wrapped.mode();
-	}
+   public boolean equals(@Nullable Object object) {
+      if (object == null) {
+         return false;
+      }
 
-	@Override
-	public boolean equals(@Nullable Object object) {
-		if (object == null) {
-			return false;
-		}
+      if (object.getClass() != this.getClass()) {
+         return false;
+      }
 
-		if (object.getClass() != this.getClass()) {
-			return false;
-		}
+      OuterWrappedRenderType other = (OuterWrappedRenderType)object;
+      return Objects.equals(this.wrapped, other.wrapped) && Objects.equals(this.extra, other.extra);
+   }
 
-		OuterWrappedRenderType other = (OuterWrappedRenderType) object;
+   public int hashCode() {
+      return this.wrapped.hashCode() + 1;
+   }
 
-		return Objects.equals(this.wrapped, other.wrapped) && Objects.equals(this.extra, other.extra);
-	}
-
-
-
-	@Override
-	public int hashCode() {
-		// Add one so that we don't have the exact same hash as the wrapped object.
-		// This means that we won't have a guaranteed collision if we're inserted to a map alongside the unwrapped object.
-		return this.wrapped.hashCode() + 1;
-	}
-
-	@Override
-	public String toString() {
-		return "iris_wrapped:" + this.wrapped.toString();
-	}
+   public String toString() {
+      return "iris_wrapped:" + this.wrapped.toString();
+   }
 }

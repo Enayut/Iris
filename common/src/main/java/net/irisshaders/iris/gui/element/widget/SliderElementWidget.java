@@ -7,172 +7,158 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenAxis;
 import net.minecraft.client.gui.navigation.ScreenDirection;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.util.Mth;
-import org.lwjgl.glfw.GLFW;
 
 public class SliderElementWidget extends StringElementWidget {
-	private static final int PREVIEW_SLIDER_WIDTH = 4;
-	private static final int ACTIVE_SLIDER_WIDTH = 6;
+   private static final int PREVIEW_SLIDER_WIDTH = 4;
+   private static final int ACTIVE_SLIDER_WIDTH = 6;
+   private boolean mouseDown = false;
 
-	private boolean mouseDown = false;
+   public SliderElementWidget(OptionMenuStringOptionElement element) {
+      super(element);
+   }
 
-	public SliderElementWidget(OptionMenuStringOptionElement element) {
-		super(element);
-	}
+   @Override
+   public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float tickDelta, boolean hovered) {
+      this.updateRenderParams(35);
+      if (!hovered && !this.isFocused()) {
+         if (this.usedKeyboard) {
+            this.usedKeyboard = false;
+            this.mouseDown = false;
+         }
 
-	@Override
-	public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float tickDelta, boolean hovered) {
-		this.updateRenderParams(35);
+         this.renderOptionWithValue(guiGraphics, false, (float)this.valueIndex / (this.valueCount - 1), 4);
+      } else {
+         this.renderSlider(guiGraphics);
+      }
 
+      if (this.usedKeyboard) {
+         if (Minecraft.getInstance().hasShiftDown()) {
+            this.renderTooltip(guiGraphics, SET_TO_DEFAULT, this.bounds.getBoundInDirection(ScreenDirection.RIGHT), this.bounds.position().y(), hovered);
+         } else if (!this.screen.isDisplayingComment()) {
+            this.renderTooltip(guiGraphics, this.unmodifiedLabel, this.bounds.getBoundInDirection(ScreenDirection.RIGHT), this.bounds.position().y(), hovered);
+         }
+      } else if (Minecraft.getInstance().hasShiftDown()) {
+         this.renderTooltip(guiGraphics, SET_TO_DEFAULT, mouseX, mouseY, hovered);
+      } else if (!this.screen.isDisplayingComment()) {
+         this.renderTooltip(guiGraphics, this.unmodifiedLabel, mouseX, mouseY, hovered);
+      }
 
-		if (!hovered && !isFocused()) {
-			if (usedKeyboard) {
-				usedKeyboard = false;
-				mouseDown = false;
-			}
-			this.renderOptionWithValue(guiGraphics, false, (float) valueIndex / (valueCount - 1), PREVIEW_SLIDER_WIDTH);
-		} else {
-			this.renderSlider(guiGraphics);
-		}
+      if (this.usedKeyboard && !this.isFocused()) {
+         this.usedKeyboard = false;
+         this.onReleased();
+      }
 
-		if (usedKeyboard) {
-			if (Minecraft.getInstance().hasShiftDown()) {
-				renderTooltip(guiGraphics, SET_TO_DEFAULT, bounds.getBoundInDirection(ScreenDirection.RIGHT), bounds.position().y(), hovered);
-			} else if (!this.screen.isDisplayingComment()) {
-				renderTooltip(guiGraphics, this.unmodifiedLabel, bounds.getBoundInDirection(ScreenDirection.RIGHT), bounds.position().y(), hovered);
-			}
-		} else {
-			if (Minecraft.getInstance().hasShiftDown()) {
-				renderTooltip(guiGraphics, SET_TO_DEFAULT, mouseX, mouseY, hovered);
-			} else if (!this.screen.isDisplayingComment()) {
-				renderTooltip(guiGraphics, this.unmodifiedLabel, mouseX, mouseY, hovered);
-			}
-		}
+      if (this.mouseDown && !this.usedKeyboard) {
+         if (!hovered) {
+            this.onReleased();
+         }
 
-		if (usedKeyboard) {
-			if (!isFocused()) {
-				usedKeyboard = false;
-				this.onReleased();
-			}
-		}
+         this.whileDragging(mouseX);
+      }
+   }
 
-		if (this.mouseDown && !usedKeyboard) {
-			// Release if the mouse went off the slider
-			if (!hovered) {
-				this.onReleased();
-			}
+   private void renderSlider(GuiGraphicsExtractor guiGraphics) {
+      GuiUtil.bindIrisWidgetsTexture();
+      GuiUtil.drawButton(
+         guiGraphics, this.bounds.position().x(), this.bounds.position().y(), this.bounds.width(), this.bounds.height(), this.isFocused(), false
+      );
+      GuiUtil.drawButton(
+         guiGraphics, this.bounds.position().x() + 2, this.bounds.position().y() + 2, this.bounds.width() - 4, this.bounds.height() - 4, false, true
+      );
+      int sliderSpace = this.bounds.width() - 8 - 6;
+      int sliderPos = this.bounds.position().x() + 4 + (int)((float)this.valueIndex / (this.valueCount - 1) * sliderSpace);
+      GuiUtil.drawButton(guiGraphics, sliderPos, this.bounds.position().y() + 4, 6, this.bounds.height() - 8, this.mouseDown, false);
+      Font font = Minecraft.getInstance().font;
+      guiGraphics.text(
+         font,
+         this.valueLabel,
+         this.bounds.getCenterInAxis(ScreenAxis.HORIZONTAL) - (int)(font.width(this.valueLabel) * 0.5),
+         this.bounds.position().y() + 7,
+         -1
+      );
+   }
 
-			whileDragging(mouseX);
-		}
-	}
+   private void whileDragging(int mouseX) {
+      float mousePositionAcrossWidget = Mth.clamp((float)(mouseX - (this.bounds.position().x() + 4)) / (this.bounds.width() - 8), 0.0F, 1.0F);
+      int newValueIndex = Math.min(this.valueCount - 1, (int)(mousePositionAcrossWidget * this.valueCount));
+      if (this.valueIndex != newValueIndex) {
+         this.valueIndex = newValueIndex;
+         this.updateLabels();
+      }
+   }
 
-	private void renderSlider(GuiGraphicsExtractor guiGraphics) {
-		GuiUtil.bindIrisWidgetsTexture();
+   private void onReleased() {
+      this.mouseDown = false;
+      this.queue();
+      this.navigation.refresh();
+      GuiUtil.playButtonClickSound();
+   }
 
-		// Draw background button
-		GuiUtil.drawButton(guiGraphics, bounds.position().x(), bounds.position().y(), bounds.width(), bounds.height(), isFocused(), false);
-		// Draw slider area
-		GuiUtil.drawButton(guiGraphics, bounds.position().x() + 2, bounds.position().y() + 2, bounds.width() - 4, bounds.height() - 4, false, true);
+   @Override
+   public boolean mouseClicked(MouseButtonEvent event, boolean bl2) {
+      if (event.button() == 1) {
+         if (Minecraft.getInstance().hasShiftDown()) {
+            if (this.applyOriginalValue()) {
+               this.navigation.refresh();
+            }
 
-		// Range of x values the slider can occupy
-		int sliderSpace = (bounds.width() - 8) - ACTIVE_SLIDER_WIDTH;
-		// Position of slider
-		int sliderPos = (bounds.position().x() + 4) + (int) (((float) valueIndex / (valueCount - 1)) * sliderSpace);
-		// Draw slider
-		GuiUtil.drawButton(guiGraphics, sliderPos, bounds.position().y() + 4, ACTIVE_SLIDER_WIDTH, bounds.height() - 8, this.mouseDown, false);
+            GuiUtil.playButtonClickSound();
+            return true;
+         } else {
+            this.mouseDown = true;
+            GuiUtil.playButtonClickSound();
+            return true;
+         }
+      } else {
+         return false;
+      }
+   }
 
-		// Draw value label
-		Font font = Minecraft.getInstance().font;
-		guiGraphics.text(font, this.valueLabel, bounds.getCenterInAxis(ScreenAxis.HORIZONTAL) - (int) (font.width(this.valueLabel) * 0.5), bounds.position().y() + 7, 0xFFFFFFFF);
-	}
+   @Override
+   public boolean keyPressed(KeyEvent event) {
+      if (event.isConfirmation()) {
+         if (Minecraft.getInstance().hasShiftDown()) {
+            if (this.applyOriginalValue()) {
+               this.navigation.refresh();
+            }
 
-	private void whileDragging(int mouseX) {
-		float mousePositionAcrossWidget = Mth.clamp((float) (mouseX - (bounds.position().x() + 4)) / (bounds.width() - 8), 0, 1);
+            GuiUtil.playButtonClickSound();
+            return true;
+         } else {
+            this.mouseDown = !this.mouseDown;
+            this.usedKeyboard = true;
+            GuiUtil.playButtonClickSound();
+            return true;
+         }
+      } else {
+         if (this.mouseDown && this.usedKeyboard) {
+            if (event.isLeft()) {
+               this.valueIndex = Math.max(0, this.valueIndex - 1);
+               this.updateLabels();
+               return true;
+            }
 
-		int newValueIndex = Math.min(valueCount - 1, (int) (mousePositionAcrossWidget * valueCount));
+            if (event.isRight()) {
+               this.valueIndex = Math.min(this.valueCount - 1, this.valueIndex + 1);
+               this.updateLabels();
+               return true;
+            }
+         }
 
-		if (valueIndex != newValueIndex) {
-			this.valueIndex = newValueIndex;
+         return false;
+      }
+   }
 
-			this.updateLabels();
-		}
-	}
-
-	private void onReleased() {
-		mouseDown = false;
-
-		this.queue();
-		this.navigation.refresh();
-
-		GuiUtil.playButtonClickSound();
-	}
-
-	@Override
-	public boolean mouseClicked(MouseButtonEvent event, boolean bl2) {
-		if (event.button() == GLFW.GLFW_MOUSE_BUTTON_1) {
-			if (Minecraft.getInstance().hasShiftDown()) {
-				if (this.applyOriginalValue()) {
-					this.navigation.refresh();
-				}
-				GuiUtil.playButtonClickSound();
-
-				return true;
-			}
-
-			mouseDown = true;
-			GuiUtil.playButtonClickSound();
-
-			return true;
-		}
-
-		// Do not use base widget's button click behavior
-		return false;
-	}
-
-	@Override
-	public boolean keyPressed(KeyEvent event) {
-		if (event.isConfirmation()) {
-			if (Minecraft.getInstance().hasShiftDown()) {
-				if (this.applyOriginalValue()) {
-					this.navigation.refresh();
-				}
-				GuiUtil.playButtonClickSound();
-
-				return true;
-			}
-
-			mouseDown = !mouseDown;
-			usedKeyboard = true;
-			GuiUtil.playButtonClickSound();
-
-			return true;
-		}
-
-		if (mouseDown && usedKeyboard) {
-			if (event.isLeft()) {
-				valueIndex = Math.max(0, valueIndex - 1);
-				this.updateLabels();
-				return true;
-			} else if (event.isRight()) {
-				valueIndex = Math.min(valueCount - 1, valueIndex + 1);
-				this.updateLabels();
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	@Override
-	public boolean mouseReleased(MouseButtonEvent event) {
-		if (event.button() == GLFW.GLFW_MOUSE_BUTTON_1) {
-			this.onReleased();
-
-			return true;
-		}
-		return super.mouseReleased(event);
-	}
+   @Override
+   public boolean mouseReleased(MouseButtonEvent event) {
+      if (event.button() == 1) {
+         this.onReleased();
+         return true;
+      } else {
+         return super.mouseReleased(event);
+      }
+   }
 }

@@ -2,10 +2,8 @@ package net.irisshaders.iris.shaderpack.include;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import net.irisshaders.iris.Iris;
-import net.irisshaders.iris.shaderpack.error.RusticError;
-import net.irisshaders.iris.shaderpack.transform.line.LineTransform;
-
+import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.collect.ImmutableMap.Builder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -17,259 +15,199 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.function.Function;
+import net.irisshaders.iris.Iris;
+import net.irisshaders.iris.shaderpack.error.RusticError;
+import net.irisshaders.iris.shaderpack.transform.line.LineTransform;
 
-/**
- * A directed graph data structure that holds the loaded source of all shader programs
- * and the files included by each source file. Each node / vertex in the graph
- * corresponds to a single file in the shader pack, and each edge / connection
- * corresponds to an {@code #include} directive on a given line.
- *
- * <p>Using a proper graph representation allows us to apply existing and
- * efficient algorithms with well-known properties to various tasks and
- * transformations necessary during shader pack loading. We receive a number of
- * immediate benefits from using a graph-based representation:</p>
- *
- * <ul>
- *     <li>Each file is read exactly one time, and it is only necessary to
- *         parse #include directives from a file once. This ensures efficient
- *         IO.
- *         </li>
- *     <li>Deferring the processing of inclusions allows transformers that only
- *         need to replace single lines at a time to operate more efficiently,
- *         avoiding processing lines duplicated across many files more than
- *         necessary.
- *         </li>
- *     <li>As a result, our shader configuration system is able to process and
- *         apply options much more efficiently than a naive one operating on
- *         included files only, allowing many operations to scale much more
- *         nicely, especially in the common case of shader pack authors having
- *         a single large settings file defining every config option that is
- *         then included in every shader program in the pack.
- *         </li>
- *     <li>Deferred processing of inclusions also allows the shader pack loader
- *         to reason about cyclic inclusions, allowing us to remove the
- *         arbitrary file include depth limit, and avoid stack overflows due to
- *         infinite recursion that a naive implementation might be subject to.
- *         </li>
- * </ul>
- */
 public class IncludeGraph {
-	private final ImmutableMap<AbsolutePackPath, FileNode> nodes;
-	private final ImmutableMap<AbsolutePackPath, RusticError> failures;
+   private final ImmutableMap<AbsolutePackPath, FileNode> nodes;
+   private final ImmutableMap<AbsolutePackPath, RusticError> failures;
 
-	private IncludeGraph(ImmutableMap<AbsolutePackPath, FileNode> nodes,
-						 ImmutableMap<AbsolutePackPath, RusticError> failures) {
-		this.nodes = nodes;
-		this.failures = failures;
-	}
+   private IncludeGraph(ImmutableMap<AbsolutePackPath, FileNode> nodes, ImmutableMap<AbsolutePackPath, RusticError> failures) {
+      this.nodes = nodes;
+      this.failures = failures;
+   }
 
-	public IncludeGraph(Path root, ImmutableList<AbsolutePackPath> startingPaths, boolean isZip) {
-		Map<AbsolutePackPath, AbsolutePackPath> cameFrom = new HashMap<>();
-		Map<AbsolutePackPath, Integer> lineNumberInclude = new HashMap<>();
+   public IncludeGraph(Path root, ImmutableList<AbsolutePackPath> startingPaths, boolean isZip) {
+      Map<AbsolutePackPath, AbsolutePackPath> cameFrom = new HashMap<>();
+      Map<AbsolutePackPath, Integer> lineNumberInclude = new HashMap<>();
+      Map<AbsolutePackPath, FileNode> nodes = new HashMap<>();
+      Map<AbsolutePackPath, RusticError> failures = new HashMap<>();
+      List<AbsolutePackPath> queue = new ArrayList<>(startingPaths);
+      Set<AbsolutePackPath> seen = new HashSet<>(startingPaths);
 
-		Map<AbsolutePackPath, FileNode> nodes = new HashMap<>();
-		Map<AbsolutePackPath, RusticError> failures = new HashMap<>();
+      while (!queue.isEmpty()) {
+         AbsolutePackPath next = queue.removeLast();
 
-		List<AbsolutePackPath> queue = new ArrayList<>(startingPaths);
-		Set<AbsolutePackPath> seen = new HashSet<>(startingPaths);
+         String source;
+         try {
+            Path p = next.resolved(root);
+            if (Iris.getIrisConfig().areDebugOptionsEnabled() && !isZip) {
+               String absolute = p.toAbsolutePath().toString().replace("\\", "/");
+               absolute = absolute.substring(absolute.lastIndexOf("shaders/") + 8);
+               String canonical = p.toFile().getCanonicalPath().replace("\\", "/");
+               canonical = canonical.substring(canonical.lastIndexOf("shaders/") + 8);
+               if (!absolute.equals(canonical)) {
+                  throw new FileIncludeException("'" + next.getPathString() + "' doesn't exist, did you mean '" + canonical + "'?");
+               }
+            }
 
-		while (!queue.isEmpty()) {
-			AbsolutePackPath next = queue.removeLast();
+            source = readFile(p);
+         } catch (IOException e) {
+            AbsolutePackPath src = cameFrom.get(next);
+            if (src == null) {
+               throw new RuntimeException("unexpected error: failed to read " + next.getPathString(), e);
+            }
 
-			String source;
+            String topLevelMessage;
+            String detailMessage;
+            if (e instanceof FileIncludeException) {
+               topLevelMessage = "failed to resolve #include directive\n" + e.getMessage();
+               detailMessage = "file not found";
+            } else if (e instanceof NoSuchFileException) {
+               topLevelMessage = "failed to resolve #include directive";
+               detailMessage = "file not found";
+            } else {
+               topLevelMessage = "unexpected I/O error while resolving #include directive: " + e;
+               detailMessage = "IO error";
+            }
 
-			try {
-				Path p = next.resolved(root);
-				if (Iris.getIrisConfig().areDebugOptionsEnabled() && !isZip) {
-					String absolute = p.toAbsolutePath().toString().replace("\\", "/");
-					absolute = absolute.substring(absolute.lastIndexOf("shaders/") + 8);
+            String badLine = ((String)nodes.get(src).getLines().get(lineNumberInclude.get(next))).trim();
+            RusticError topLevelError = new RusticError("error", topLevelMessage, detailMessage, src.getPathString(), lineNumberInclude.get(next) + 1, badLine);
+            failures.put(next, topLevelError);
+            continue;
+         }
 
-					String canonical = p.toFile().getCanonicalPath().replace("\\", "/");
-					canonical = canonical.substring(canonical.lastIndexOf("shaders/") + 8);
-					if (!absolute.equals(canonical)) {
-						throw new FileIncludeException("'" + next.getPathString() + "' doesn't exist, did you mean '" + canonical + "'?");
-					}
-				}
-				source = readFile(p);
-			} catch (IOException e) {
-				AbsolutePackPath src = cameFrom.get(next);
+         ImmutableList<String> lines = ImmutableList.copyOf(source.split("\\R"));
+         FileNode node = new FileNode(next, lines);
+         boolean selfInclude = false;
+         UnmodifiableIterator var27 = node.getIncludes().entrySet().iterator();
 
-				if (src == null) {
-					throw new RuntimeException("unexpected error: failed to read " + next.getPathString(), e);
-				}
+         while (true) {
+            if (var27.hasNext()) {
+               Entry<Integer, AbsolutePackPath> include = (Entry<Integer, AbsolutePackPath>)var27.next();
+               int line = include.getKey();
+               AbsolutePackPath included = include.getValue();
+               if (!next.equals(included)) {
+                  if (!seen.contains(included)) {
+                     queue.add(included);
+                     seen.add(included);
+                     cameFrom.put(included, next);
+                     lineNumberInclude.put(included, line);
+                  }
+                  continue;
+               }
 
-				String topLevelMessage;
-				String detailMessage;
-				if (e instanceof FileIncludeException) {
-					topLevelMessage = "failed to resolve #include directive\n" + e.getMessage();
-					detailMessage = "file not found";
-				} else if (e instanceof NoSuchFileException) {
-					topLevelMessage = "failed to resolve #include directive";
-					detailMessage = "file not found";
-				} else {
-					topLevelMessage = "unexpected I/O error while resolving #include directive: " + e;
-					detailMessage = "IO error";
-				}
+               selfInclude = true;
+               failures.put(
+                  next,
+                  new RusticError("error", "trivial #include cycle detected", "file includes itself", next.getPathString(), line + 1, (String)lines.get(line))
+               );
+            }
 
-				String badLine = nodes.get(src).getLines().get(lineNumberInclude.get(next)).trim();
+            if (!selfInclude) {
+               nodes.put(next, node);
+            }
+            break;
+         }
+      }
 
-				RusticError topLevelError = new RusticError("error", topLevelMessage, detailMessage, src.getPathString(),
-					lineNumberInclude.get(next) + 1, badLine);
+      this.nodes = ImmutableMap.copyOf(nodes);
+      this.failures = ImmutableMap.copyOf(failures);
+      this.detectCycle();
+   }
 
-				failures.put(next, topLevelError);
+   private static String readFile(Path path) throws IOException {
+      return Files.readString(path);
+   }
 
-				continue;
-			}
+   private void detectCycle() {
+      List<AbsolutePackPath> cycle = new ArrayList<>();
+      Set<AbsolutePackPath> visited = new HashSet<>();
+      UnmodifiableIterator var3 = this.nodes.keySet().iterator();
 
-			ImmutableList<String> lines = ImmutableList.copyOf(source.split("\\R"));
+      while (var3.hasNext()) {
+         AbsolutePackPath start = (AbsolutePackPath)var3.next();
+         if (this.exploreForCycles(start, cycle, visited)) {
+            AbsolutePackPath lastFilePath = null;
+            StringBuilder error = new StringBuilder();
 
-			FileNode node = new FileNode(next, lines);
-			boolean selfInclude = false;
+            for (AbsolutePackPath node : cycle) {
+               if (lastFilePath == null) {
+                  lastFilePath = node;
+               } else {
+                  FileNode lastFile = (FileNode)this.nodes.get(lastFilePath);
+                  int lineNumber = -1;
+                  UnmodifiableIterator badLine = lastFile.getIncludes().entrySet().iterator();
 
-			for (Map.Entry<Integer, AbsolutePackPath> include : node.getIncludes().entrySet()) {
-				int line = include.getKey();
-				AbsolutePackPath included = include.getValue();
+                  while (badLine.hasNext()) {
+                     Entry<Integer, AbsolutePackPath> include = (Entry<Integer, AbsolutePackPath>)badLine.next();
+                     if (include.getValue() == node) {
+                        lineNumber = include.getKey() + 1;
+                     }
+                  }
 
-				if (next.equals(included)) {
-					selfInclude = true;
-					failures.put(next, new RusticError("error", "trivial #include cycle detected",
-						"file includes itself", next.getPathString(), line + 1, lines.get(line)));
+                  String badLinex = (String)lastFile.getLines().get(lineNumber - 1);
+                  String detailMessage = node.equals(start) ? "final #include in cycle" : "#include involved in cycle";
+                  if (lastFilePath.equals(start)) {
+                     error.append(new RusticError("error", "#include cycle detected", detailMessage, lastFilePath.getPathString(), lineNumber, badLinex));
+                  } else {
+                     error.append("\n  = ")
+                        .append(new RusticError("note", "cycle involves another file", detailMessage, lastFilePath.getPathString(), lineNumber, badLinex));
+                  }
 
-					break;
-				} else if (!seen.contains(included)) {
-					queue.add(included);
-					seen.add(included);
-					cameFrom.put(included, next);
-					lineNumberInclude.put(included, line);
-				}
-			}
+                  lastFilePath = node;
+               }
+            }
 
-			if (!selfInclude) {
-				nodes.put(next, node);
-			}
-		}
+            error.append(
+               "  note: #include directives are resolved before any other preprocessor directives, any form of #include guard will not work\n\n  note: other cycles may still exist, only the first detected non-trivial cycle will be reported\n"
+            );
+            Iris.logger.error(error.toString());
+            throw new IllegalStateException("Cycle detected in #include graph, see previous messages for details");
+         }
+      }
+   }
 
-		this.nodes = ImmutableMap.copyOf(nodes);
-		this.failures = ImmutableMap.copyOf(failures);
+   private boolean exploreForCycles(AbsolutePackPath frontier, List<AbsolutePackPath> path, Set<AbsolutePackPath> visited) {
+      if (visited.contains(frontier)) {
+         path.add(frontier);
+         return true;
+      }
 
-		detectCycle();
-	}
+      path.add(frontier);
+      visited.add(frontier);
+      UnmodifiableIterator var4 = ((FileNode)this.nodes.get(frontier)).getIncludes().values().iterator();
 
-	private static String readFile(Path path) throws IOException {
-		return Files.readString(path);
-	}
+      while (var4.hasNext()) {
+         AbsolutePackPath included = (AbsolutePackPath)var4.next();
+         if (this.nodes.containsKey(included) && this.exploreForCycles(included, path, visited)) {
+            return true;
+         }
+      }
 
-	private void detectCycle() {
-		List<AbsolutePackPath> cycle = new ArrayList<>();
-		Set<AbsolutePackPath> visited = new HashSet<>();
+      path.removeLast();
+      visited.remove(frontier);
+      return false;
+   }
 
-		for (AbsolutePackPath start : nodes.keySet()) {
-			if (exploreForCycles(start, cycle, visited)) {
-				AbsolutePackPath lastFilePath = null;
+   public ImmutableMap<AbsolutePackPath, FileNode> getNodes() {
+      return this.nodes;
+   }
 
-				StringBuilder error = new StringBuilder();
+   public List<IncludeGraph> computeWeaklyConnectedComponents() {
+      return Collections.singletonList(this);
+   }
 
-				for (AbsolutePackPath node : cycle) {
-					if (lastFilePath == null) {
-						lastFilePath = node;
-						continue;
-					}
+   public IncludeGraph map(Function<AbsolutePackPath, LineTransform> transformProvider) {
+      Builder<AbsolutePackPath, FileNode> mappedNodes = ImmutableMap.builder();
+      this.nodes.forEach((path, node) -> mappedNodes.put(path, node.map(transformProvider.apply(path))));
+      return new IncludeGraph(mappedNodes.build(), this.failures);
+   }
 
-					FileNode lastFile = nodes.get(lastFilePath);
-					int lineNumber = -1;
-
-					for (Map.Entry<Integer, AbsolutePackPath> include : lastFile.getIncludes().entrySet()) {
-						if (include.getValue() == node) {
-							lineNumber = include.getKey() + 1;
-						}
-					}
-
-					String badLine = lastFile.getLines().get(lineNumber - 1);
-
-					String detailMessage = node.equals(start) ? "final #include in cycle" : "#include involved in cycle";
-
-					if (lastFilePath.equals(start)) {
-						// first node in cycle
-						error.append(new RusticError("error", "#include cycle detected",
-							detailMessage, lastFilePath.getPathString(), lineNumber, badLine));
-					} else {
-						error.append("\n  = ").append(new RusticError("note", "cycle involves another file",
-							detailMessage, lastFilePath.getPathString(), lineNumber, badLine));
-					}
-
-					lastFilePath = node;
-				}
-
-				error.append(
-					"""
-						  note: #include directives are resolved before any other preprocessor directives, any form of #include guard will not work
-
-						  note: other cycles may still exist, only the first detected non-trivial cycle will be reported
-						""");
-
-				// TODO: Expose this to the caller (more semantic error handling)
-				Iris.logger.error(error.toString());
-
-				throw new IllegalStateException("Cycle detected in #include graph, see previous messages for details");
-			}
-		}
-	}
-
-	private boolean exploreForCycles(AbsolutePackPath frontier, List<AbsolutePackPath> path, Set<AbsolutePackPath> visited) {
-		if (visited.contains(frontier)) {
-			path.add(frontier);
-			return true;
-		}
-
-		path.add(frontier);
-		visited.add(frontier);
-
-		for (AbsolutePackPath included : nodes.get(frontier).getIncludes().values()) {
-			if (!nodes.containsKey(included)) {
-				// file that failed to load for another reason, error should already be reported
-				continue;
-			}
-
-			if (exploreForCycles(included, path, visited)) {
-				return true;
-			}
-		}
-
-		path.removeLast();
-		visited.remove(frontier);
-
-		return false;
-	}
-
-	public ImmutableMap<AbsolutePackPath, FileNode> getNodes() {
-		return nodes;
-	}
-
-	public List<IncludeGraph> computeWeaklyConnectedComponents() {
-		//List<IncludeGraph> components = new ArrayList<>();
-
-		// TODO: WCC
-		//throw new UnsupportedOperationException();
-
-		//return components;
-
-		// TODO: This digraph might not be weakly connected
-		//       A digraph is weakly connected if its corresponding undirected
-		//       graph is connected
-		//       Make an adjacency list and then go from there
-		return Collections.singletonList(this);
-	}
-
-	public IncludeGraph map(Function<AbsolutePackPath, LineTransform> transformProvider) {
-		ImmutableMap.Builder<AbsolutePackPath, FileNode> mappedNodes = ImmutableMap.builder();
-
-		nodes.forEach((path, node) -> mappedNodes.put(path, node.map(transformProvider.apply(path))));
-
-		return new IncludeGraph(mappedNodes.build(), failures);
-	}
-
-	public ImmutableMap<AbsolutePackPath, RusticError> getFailures() {
-		return failures;
-	}
+   public ImmutableMap<AbsolutePackPath, RusticError> getFailures() {
+      return this.failures;
+   }
 }

@@ -1,52 +1,55 @@
 package net.irisshaders.iris.gl.blending;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager.DepthState;
+import java.util.Arrays;
 import net.irisshaders.iris.mixin.GlStateManagerAccessor;
 
 public class DepthColorStorage {
-	private static boolean originalDepthEnable;
-	private static int originalColor;
-	private static boolean depthColorLocked;
+   private static boolean originalDepthEnable;
+   private static final int[] originalColor = new int[GlStateManagerAccessor.getCOLOR_MASK().length];
+   private static boolean depthColorLocked;
 
-	public static boolean isDepthColorLocked() {
-		return depthColorLocked;
-	}
+   public static boolean isDepthColorLocked() {
+      return depthColorLocked;
+   }
 
-	public static void disableDepthColor() {
-		if (!depthColorLocked) {
-			// Only save the previous state if the depth and color mask wasn't already locked
-			int colorMask = GlStateManagerAccessor.getCOLOR_MASK();
-			GlStateManager.DepthState depthState = GlStateManagerAccessor.getDEPTH();
+   public static void disableDepthColor() {
+      if (!depthColorLocked) {
+         DepthState depthState = GlStateManagerAccessor.getDEPTH();
+         originalDepthEnable = depthState.mask;
 
-			originalDepthEnable = depthState.mask;
-			originalColor = colorMask;
-		}
+         for (int i = 0; i < originalColor.length; i++) {
+            originalColor[i] = GlStateManagerAccessor.getCOLOR_MASK()[i];
+         }
+      }
 
-		depthColorLocked = false;
+      depthColorLocked = false;
+      GlStateManager._depthMask(false);
+      GlStateManager._colorMask(0);
+      depthColorLocked = true;
+   }
 
-		GlStateManager._depthMask(false);
-		GlStateManager._colorMask(0);
+   public static void deferDepthEnable(boolean enabled) {
+      originalDepthEnable = enabled;
+   }
 
-		depthColorLocked = true;
-	}
+   public static void deferColorMask(int writeMask) {
+      Arrays.fill(originalColor, writeMask);
+   }
 
-	public static void deferDepthEnable(boolean enabled) {
-		originalDepthEnable = enabled;
-	}
+   public static void deferColorMask(int index, int writeMask) {
+      originalColor[index] = writeMask;
+   }
 
-	public static void deferColorMask(int writeMask) {
-		originalColor = writeMask;
-	}
+   public static void unlockDepthColor() {
+      if (depthColorLocked) {
+         depthColorLocked = false;
+         GlStateManager._depthMask(originalDepthEnable);
 
-	public static void unlockDepthColor() {
-		if (!depthColorLocked) {
-			return;
-		}
-
-		depthColorLocked = false;
-
-		GlStateManager._depthMask(originalDepthEnable);
-
-		GlStateManager._colorMask(originalColor);
-	}
+         for (int i = 0; i < originalColor.length; i++) {
+            GlStateManager._colorMask(i, originalColor[i]);
+         }
+      }
+   }
 }

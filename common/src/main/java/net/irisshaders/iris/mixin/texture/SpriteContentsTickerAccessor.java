@@ -1,24 +1,24 @@
 package net.irisshaders.iris.mixin.texture;
 
-import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.SpriteContents.AnimatedTexture;
+import net.minecraft.client.renderer.texture.SpriteContents.AnimationState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(SpriteContents.AnimationState.class)
+@Mixin(AnimationState.class)
 public interface SpriteContentsTickerAccessor {
-	@Accessor("frame")
-	int getFrame();
+   @Accessor("frame")
+   int getFrame();
 
-	@Accessor("frame")
-	void setFrame(int frame);
+   @Accessor("frame")
+   void setFrame(int var1);
 
-	@Accessor("subFrame")
-	int getSubFrame();
+   @Accessor("subFrame")
+   int getSubFrame();
 
-	@Accessor("subFrame")
-	void setSubFrame(int subFrame);
+   @Accessor("subFrame")
+   void setSubFrame(int var1);
 
-	@Accessor("animationInfo")
-	AnimatedTexture getAnimationInfo();
+   @Accessor("animationInfo")
+   AnimatedTexture getAnimationInfo();
 }

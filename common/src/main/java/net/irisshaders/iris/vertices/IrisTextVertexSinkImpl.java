@@ -1,139 +1,142 @@
 package net.irisshaders.iris.vertices;
 
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormatElement;
+import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 import net.irisshaders.iris.api.v0.IrisTextVertexSink;
 import net.irisshaders.iris.uniforms.CapturedRenderingState;
 import net.irisshaders.iris.vertices.views.QuadView;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
 
-import java.nio.ByteBuffer;
-import java.util.function.IntFunction;
-
 public class IrisTextVertexSinkImpl implements IrisTextVertexSink {
-	static final VertexFormat format = IrisVertexFormats.GLYPH;
-	private static final int STRIDE = IrisVertexFormats.GLYPH.getVertexSize();
-	private static final int OFFSET_POSITION = 0;
-	private static final int OFFSET_COLOR = 12;
-	private static final int OFFSET_TEXTURE = 16;
-	private static final int OFFSET_MID_TEXTURE = 38;
-	private static final int OFFSET_LIGHT = 24;
-	private static final int OFFSET_NORMAL = 28;
-	private static final int OFFSET_TANGENT = 46;
-	private final ByteBuffer buffer;
-	private final TextQuadView quad = new TextQuadView();
-	private final Vector3f saveNormal = new Vector3f();
-	private int vertexCount;
-	private long elementOffset;
-	private float uSum;
-	private float vSum;
+   static final VertexFormat format = IrisVertexFormats.GLYPH;
+   private static final int STRIDE = IrisVertexFormats.GLYPH.getVertexSize();
+   private static final int OFFSET_POSITION = getOffset("Position");
+   private static final int OFFSET_COLOR = getOffset("Color");
+   private static final int OFFSET_TEXTURE = getOffset("UV0");
+   private static final int OFFSET_MID_TEXTURE = getOffset("mc_midTexCoord");
+   private static final int OFFSET_LIGHT = getOffset("UV2");
+   private static final int OFFSET_NORMAL = getOffset("Normal");
+   private static final int OFFSET_TANGENT = getOffset("at_tangent");
+   private final ByteBuffer buffer;
+   private final IrisTextVertexSinkImpl.TextQuadView quad = new IrisTextVertexSinkImpl.TextQuadView();
+   private final Vector3f saveNormal = new Vector3f();
+   private int vertexCount;
+   private long elementOffset;
+   private float uSum;
+   private float vSum;
 
-	public IrisTextVertexSinkImpl(int maxQuadCount, IntFunction<ByteBuffer> buffer) {
-		this.buffer = buffer.apply(format.getVertexSize() * 4 * maxQuadCount);
-		this.elementOffset = MemoryUtil.memAddress(this.buffer);
-	}
+   public IrisTextVertexSinkImpl(int maxQuadCount, IntFunction<ByteBuffer> buffer) {
+      this.buffer = buffer.apply(format.getVertexSize() * 4 * maxQuadCount);
+      this.elementOffset = MemoryUtil.memAddress(this.buffer);
+   }
 
-	@Override
-	public VertexFormat getUnderlyingVertexFormat() {
-		return format;
-	}
+   private static int getOffset(String name) {
+      VertexFormatElement element = IrisVertexFormats.GLYPH.getElement(name);
+      if (element == null) {
+         throw new IllegalArgumentException("Cannot find element " + name);
+      } else {
+         return element.offset();
+      }
+   }
 
-	@Override
-	public ByteBuffer getUnderlyingByteBuffer() {
-		return buffer;
-	}
+   @Override
+   public VertexFormat getUnderlyingVertexFormat() {
+      return format;
+   }
 
-	@Override
-	public void quad(float minX, float minY, float maxX, float maxY, float z, int color, float minU, float minV, float maxU, float maxV, int light) {
-		vertex(minX, minY, z, color, minU, minV, light);
-		vertex(minX, maxY, z, color, minU, maxV, light);
-		vertex(maxX, maxY, z, color, maxU, maxV, light);
-		vertex(maxX, minY, z, color, maxU, minV, light);
-	}
+   @Override
+   public ByteBuffer getUnderlyingByteBuffer() {
+      return this.buffer;
+   }
 
-	private void vertex(float x, float y, float z, int color, float u, float v, int light) {
-		vertexCount++;
-		uSum += u;
-		vSum += v;
+   @Override
+   public void quad(float minX, float minY, float maxX, float maxY, float z, int color, float minU, float minV, float maxU, float maxV, int light) {
+      this.vertex(minX, minY, z, color, minU, minV, light);
+      this.vertex(minX, maxY, z, color, minU, maxV, light);
+      this.vertex(maxX, maxY, z, color, maxU, maxV, light);
+      this.vertex(maxX, minY, z, color, maxU, minV, light);
+   }
 
-		long ptr = elementOffset;
+   private void vertex(float x, float y, float z, int color, float u, float v, int light) {
+      this.vertexCount++;
+      this.uSum += u;
+      this.vSum += v;
+      long ptr = this.elementOffset;
+      MemoryUtil.memPutFloat(ptr + OFFSET_POSITION, x);
+      MemoryUtil.memPutFloat(ptr + OFFSET_POSITION + 4L, y);
+      MemoryUtil.memPutFloat(ptr + OFFSET_POSITION + 8L, z);
+      MemoryUtil.memPutInt(ptr + OFFSET_COLOR, color);
+      MemoryUtil.memPutFloat(ptr + OFFSET_TEXTURE, u);
+      MemoryUtil.memPutFloat(ptr + OFFSET_TEXTURE + 4L, v);
+      MemoryUtil.memPutInt(ptr + OFFSET_LIGHT, light);
+      MemoryUtil.memPutShort(ptr + 32L, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedEntity());
+      MemoryUtil.memPutShort(ptr + 34L, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity());
+      MemoryUtil.memPutShort(ptr + 36L, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedItem());
+      if (this.vertexCount == 4) {
+         this.vertexCount = 0;
+         this.uSum *= 0.25F;
+         this.vSum *= 0.25F;
+         this.quad.setup(this.elementOffset, IrisVertexFormats.GLYPH.getVertexSize());
+         NormalHelper.computeFaceNormal(this.saveNormal, this.quad);
+         float normalX = this.saveNormal.x;
+         float normalY = this.saveNormal.y;
+         float normalZ = this.saveNormal.z;
+         int normal = NormI8.pack(normalX, normalY, normalZ, 0.0F);
+         int tangent = NormalHelper.computeTangent(normalX, normalY, normalZ, this.quad);
 
-		MemoryAccess.setFloat(ptr + OFFSET_POSITION, x);
-		MemoryAccess.setFloat(ptr + OFFSET_POSITION + 4, y);
-		MemoryAccess.setFloat(ptr + OFFSET_POSITION + 8, z);
+         for (long vertex = 0L; vertex < 4L; vertex++) {
+            MemoryUtil.memPutFloat(ptr + OFFSET_MID_TEXTURE - STRIDE * vertex, this.uSum);
+            MemoryUtil.memPutFloat(ptr + (OFFSET_MID_TEXTURE + 4) - STRIDE * vertex, this.vSum);
+            MemoryUtil.memPutInt(ptr + OFFSET_NORMAL - STRIDE * vertex, normal);
+            MemoryUtil.memPutInt(ptr + OFFSET_TANGENT - STRIDE * vertex, tangent);
+         }
 
-		MemoryAccess.setInt(ptr + OFFSET_COLOR, color);
+         this.uSum = 0.0F;
+         this.vSum = 0.0F;
+      }
 
-		MemoryAccess.setFloat(ptr + OFFSET_TEXTURE, u);
-		MemoryAccess.setFloat(ptr + OFFSET_TEXTURE + 4, v);
+      this.buffer.position(this.buffer.position() + STRIDE);
+      this.elementOffset = this.elementOffset + STRIDE;
+   }
 
-		MemoryAccess.setInt(ptr + OFFSET_LIGHT, light);
+   static class TextQuadView implements QuadView {
+      long writePointer;
+      int stride;
 
-		MemoryAccess.setShort(ptr + 32, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedEntity());
-		MemoryAccess.setShort(ptr + 34, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity());
-		MemoryAccess.setShort(ptr + 36, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedItem());
+      public TextQuadView() {
+      }
 
-		if (vertexCount == 4) {
-			// TODO: compute this at the head of quad()
-			vertexCount = 0;
-			uSum *= 0.25f;
-			vSum *= 0.25f;
-			quad.setup(elementOffset, IrisVertexFormats.GLYPH.getVertexSize());
+      public void setup(long writePointer, int stride) {
+         this.writePointer = writePointer;
+         this.stride = stride;
+      }
 
-			NormalHelper.computeFaceNormal(saveNormal, quad);
-			float normalX = saveNormal.x;
-			float normalY = saveNormal.y;
-			float normalZ = saveNormal.z;
-			int normal = NormI8.pack(normalX, normalY, normalZ, 0.0F);
+      @Override
+      public float x(int index) {
+         return MemoryUtil.memGetFloat(this.writePointer - this.stride * (3L - index));
+      }
 
-			int tangent = NormalHelper.computeTangent(normalX, normalY, normalZ, quad);
+      @Override
+      public float y(int index) {
+         return MemoryUtil.memGetFloat(this.writePointer + 4L - this.stride * (3L - index));
+      }
 
-			for (long vertex = 0; vertex < 4; vertex++) {
-				MemoryAccess.setFloat(ptr + OFFSET_MID_TEXTURE - STRIDE * vertex, uSum);
-				MemoryAccess.setFloat(ptr + (OFFSET_MID_TEXTURE + 4) - STRIDE * vertex, vSum);
-				MemoryAccess.setInt(ptr + OFFSET_NORMAL - STRIDE * vertex, normal);
-				MemoryAccess.setInt(ptr + OFFSET_TANGENT - STRIDE * vertex, tangent);
-			}
+      @Override
+      public float z(int index) {
+         return MemoryUtil.memGetFloat(this.writePointer + 8L - this.stride * (3L - index));
+      }
 
-			uSum = 0;
-			vSum = 0;
-		}
+      @Override
+      public float u(int index) {
+         return MemoryUtil.memGetFloat(this.writePointer + 16L - this.stride * (3L - index));
+      }
 
-		buffer.position(buffer.position() + STRIDE);
-		elementOffset += STRIDE;
-	}
-
-	static class TextQuadView implements QuadView {
-		long writePointer;
-		int stride;
-
-		public TextQuadView() {
-
-		}
-
-		public void setup(long writePointer, int stride) {
-			this.writePointer = writePointer;
-			this.stride = stride;
-		}
-
-		public float x(int index) {
-			return MemoryAccess.getFloat(writePointer - stride * (3L - index));
-		}
-
-		public float y(int index) {
-			return MemoryAccess.getFloat(writePointer + 4 - stride * (3L - index));
-		}
-
-		public float z(int index) {
-			return MemoryAccess.getFloat(writePointer + 8 - stride * (3L - index));
-		}
-
-		public float u(int index) {
-			return MemoryAccess.getFloat(writePointer + 16 - stride * (3L - index));
-		}
-
-		public float v(int index) {
-			return MemoryAccess.getFloat(writePointer + 20 - stride * (3L - index));
-		}
-	}
+      @Override
+      public float v(int index) {
+         return MemoryUtil.memGetFloat(this.writePointer + 20L - this.stride * (3L - index));
+      }
+   }
 }

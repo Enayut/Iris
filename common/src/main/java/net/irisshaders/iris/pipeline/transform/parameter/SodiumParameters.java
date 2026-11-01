@@ -1,6 +1,7 @@
 package net.irisshaders.iris.pipeline.transform.parameter;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
+import java.util.Set;
 import net.irisshaders.iris.gl.blending.AlphaTest;
 import net.irisshaders.iris.gl.texture.TextureType;
 import net.irisshaders.iris.helpers.Tri;
@@ -8,52 +9,58 @@ import net.irisshaders.iris.pipeline.transform.Patch;
 import net.irisshaders.iris.shaderpack.texture.TextureStage;
 
 public class SodiumParameters extends Parameters {
-	// WARNING: adding new fields requires updating hashCode and equals methods!
+   public final AlphaTest alpha;
+   public final boolean shadow;
 
-	// DO NOT include this field in hashCode or equals, it's mutable!
-	// (See use of setAlphaFor in TransformPatcher)
-	public final AlphaTest alpha;
-	public final boolean shadow;
+   public SodiumParameters(
+      Patch patch, Object2ObjectMap<Tri<String, TextureType, TextureStage>, String> textureMap, Set<String> textureOverrides, AlphaTest alpha, boolean shadow
+   ) {
+      super(patch, textureMap, textureOverrides);
+      this.alpha = alpha;
+      this.shadow = shadow;
+   }
 
-	public SodiumParameters(Patch patch,
-							Object2ObjectMap<Tri<String, TextureType, TextureStage>, String> textureMap,
-							AlphaTest alpha, boolean shadow) {
-		super(patch, textureMap);
+   @Override
+   public AlphaTest getAlphaTest() {
+      return this.alpha;
+   }
 
-		this.alpha = alpha;
-		this.shadow = shadow;
-	}
+   @Override
+   public TextureStage getTextureStage() {
+      return TextureStage.GBUFFERS_AND_SHADOW;
+   }
 
-	@Override
-	public AlphaTest getAlphaTest() {
-		return alpha;
-	}
+   @Override
+   public int hashCode() {
+      int prime = 31;
+      int result = super.hashCode();
+      result = 31 * result + (this.alpha == null ? 0 : this.alpha.hashCode());
+      return 31 * result + (this.shadow ? 1231 : 1237);
+   }
 
-	@Override
-	public TextureStage getTextureStage() {
-		return TextureStage.GBUFFERS_AND_SHADOW;
-	}
+   @Override
+   public boolean equals(Object obj) {
+      if (this == obj) {
+         return true;
+      }
 
+      if (!super.equals(obj)) {
+         return false;
+      }
 
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = super.hashCode();
-		result = prime * result + ((alpha == null) ? 0 : alpha.hashCode());
-		return result;
-	}
+      if (this.getClass() != obj.getClass()) {
+         return false;
+      }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (!super.equals(obj))
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		SodiumParameters other = (SodiumParameters) obj;
-		if (alpha == null) {
-			return other.alpha == null;
-		} else return alpha.equals(other.alpha);
-	}
+      SodiumParameters other = (SodiumParameters)obj;
+      if (this.alpha == null) {
+         if (other.alpha != null) {
+            return false;
+         }
+      } else if (!this.alpha.equals(other.alpha)) {
+         return false;
+      }
+
+      return this.shadow == other.shadow;
+   }
 }

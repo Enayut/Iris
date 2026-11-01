@@ -7,15 +7,22 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import org.jspecify.annotations.Nullable;
 
 public interface ItemInHandInterface {
-	default void iris$renderHandsWithCustomRenderer(HandRenderer handRenderer, float tickDelta, PoseStack poseStack, SubmitNodeStorage submitNodeCollector, @Nullable LocalPlayer player, int packedLightCoords) {
-		throw new AssertionError();
-	}
+   default void iris$renderHandsWithCustomRenderer(
+      HandRenderer handRenderer,
+      float tickDelta,
+      PoseStack poseStack,
+      SubmitNodeStorage submitNodeCollector,
+      @Nullable LocalPlayer player,
+      int packedLightCoords
+   ) {
+      throw new AssertionError();
+   }
 
- 	default boolean iris$isAnyHandTranslucent() {
-		throw new AssertionError();
-	}
+   default boolean iris$isAnyHandTranslucent() {
+      throw new AssertionError();
+   }
 
-	default boolean iris$isAnyHandSolid() {
-		throw new AssertionError();
-	}
+   default boolean iris$isAnyHandSolid() {
+      throw new AssertionError();
+   }
 }

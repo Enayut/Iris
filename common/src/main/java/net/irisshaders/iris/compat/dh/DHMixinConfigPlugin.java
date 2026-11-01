@@ -1,46 +1,34 @@
 package net.irisshaders.iris.compat.dh;
 
+import java.util.List;
+import java.util.Set;
 import net.irisshaders.iris.platform.IrisPlatformHelpers;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
-import java.util.List;
-import java.util.Set;
-
 public class DHMixinConfigPlugin implements IMixinConfigPlugin {
-	@Override
-	public void onLoad(String mixinPackage) {
+   public void onLoad(String mixinPackage) {
+   }
 
-	}
+   public String getRefMapperConfig() {
+      return null;
+   }
 
-	@Override
-	public String getRefMapperConfig() {
-		return null;
-	}
+   public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+      return IrisPlatformHelpers.getInstance().isModLoaded("distanthorizons");
+   }
 
-	@Override
-	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-		return IrisPlatformHelpers.getInstance().isModLoaded("distanthorizons");
-	}
+   public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {
+   }
 
-	@Override
-	public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {
+   public List<String> getMixins() {
+      return List.of();
+   }
 
-	}
+   public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+   }
 
-	@Override
-	public List<String> getMixins() {
-		return List.of();
-	}
-
-	@Override
-	public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-
-	}
-
-	@Override
-	public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-
-	}
+   public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+   }
 }

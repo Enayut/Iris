@@ -9,32 +9,32 @@ import org.spongepowered.asm.mixin.Shadow;
 
 @Mixin(value = ChunkVertexConsumer.class, remap = false)
 public class MixinChunkVertexConsumer implements BlockSensitiveBufferBuilder {
-	@Shadow
-	@Final
-	private ChunkModelBuilder modelBuilder;
+   @Shadow
+   @Final
+   private ChunkModelBuilder modelBuilder;
 
-	@Override
-	public void beginBlock(int block, byte renderType, byte blockEmission, int localPosX, int localPosY, int localPosZ) {
-		((BlockSensitiveBufferBuilder) modelBuilder).beginBlock(block, renderType, blockEmission, localPosX, localPosY, localPosZ);
-	}
+   @Override
+   public void beginBlock(int block, byte renderType, byte blockEmission, int localPosX, int localPosY, int localPosZ) {
+      ((BlockSensitiveBufferBuilder)this.modelBuilder).beginBlock(block, renderType, blockEmission, localPosX, localPosY, localPosZ);
+   }
 
-	@Override
-	public void overrideBlock(int block) {
-		((BlockSensitiveBufferBuilder) modelBuilder).overrideBlock(block);
-	}
+   @Override
+   public void overrideBlock(int block) {
+      ((BlockSensitiveBufferBuilder)this.modelBuilder).overrideBlock(block);
+   }
 
-	@Override
-	public void restoreBlock() {
-		((BlockSensitiveBufferBuilder) modelBuilder).restoreBlock();
-	}
+   @Override
+   public void restoreBlock() {
+      ((BlockSensitiveBufferBuilder)this.modelBuilder).restoreBlock();
+   }
 
-	@Override
-	public void endBlock() {
-		((BlockSensitiveBufferBuilder) modelBuilder).endBlock();
-	}
+   @Override
+   public void endBlock() {
+      ((BlockSensitiveBufferBuilder)this.modelBuilder).endBlock();
+   }
 
-	@Override
-	public void ignoreMidBlock(boolean b) {
-		((BlockSensitiveBufferBuilder) modelBuilder).ignoreMidBlock(b);
-	}
+   @Override
+   public void ignoreMidBlock(boolean b) {
+      ((BlockSensitiveBufferBuilder)this.modelBuilder).ignoreMidBlock(b);
+   }
 }

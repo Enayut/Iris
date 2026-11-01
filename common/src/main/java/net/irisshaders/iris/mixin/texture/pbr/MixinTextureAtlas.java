@@ -1,12 +1,9 @@
 package net.irisshaders.iris.mixin.texture.pbr;
 
-import com.mojang.blaze3d.opengl.GlTexture;
-import com.mojang.blaze3d.textures.FilterMode;
 import net.irisshaders.iris.pbr.TextureTracker;
 import net.irisshaders.iris.pbr.texture.PBRAtlasHolder;
 import net.irisshaders.iris.pbr.texture.TextureAtlasExtension;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.client.renderer.texture.SpriteLoader;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Final;
@@ -19,34 +16,35 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(TextureAtlas.class)
 public abstract class MixinTextureAtlas extends AbstractTexture implements TextureAtlasExtension {
-	@Shadow
-	@Final
-	private Identifier location;
-	@Unique
-	private PBRAtlasHolder pbrHolder;
+   @Shadow
+   @Final
+   private Identifier location;
+   @Unique
+   private PBRAtlasHolder pbrHolder;
 
-	@Inject(method = "cycleAnimationFrames()V", at = @At("TAIL"))
-	private void iris$onTailCycleAnimationFrames(CallbackInfo ci) {
-		if (pbrHolder != null) {
-			pbrHolder.cycleAnimationFrames();
-		}
-	}
+   @Inject(method = "cycleAnimationFrames()V", at = @At("TAIL"))
+   private void iris$onTailCycleAnimationFrames(CallbackInfo ci) {
+      if (this.pbrHolder != null) {
+         this.pbrHolder.cycleAnimationFrames();
+      }
+   }
 
-	@Override
-	public PBRAtlasHolder getPBRHolder() {
-		return pbrHolder;
-	}
+   @Override
+   public PBRAtlasHolder getPBRHolder() {
+      return this.pbrHolder;
+   }
 
-	@Override
-	public PBRAtlasHolder getOrCreatePBRHolder() {
-		if (pbrHolder == null) {
-			pbrHolder = new PBRAtlasHolder();
-		}
-		return pbrHolder;
-	}
+   @Override
+   public PBRAtlasHolder getOrCreatePBRHolder() {
+      if (this.pbrHolder == null) {
+         this.pbrHolder = new PBRAtlasHolder();
+      }
 
-	@Inject(method = "upload", at = @At("RETURN"))
-	private void iris$onUpload(CallbackInfo ci) {
-		TextureTracker.INSTANCE.trackTexture(texture.iris$getGlId(), (AbstractTexture) (Object) this);
-	}
+      return this.pbrHolder;
+   }
+
+   @Inject(method = "upload", at = @At("RETURN"))
+   private void iris$onUpload(CallbackInfo ci) {
+      TextureTracker.INSTANCE.trackTexture(this.texture.iris$getGlId(), this);
+   }
 }

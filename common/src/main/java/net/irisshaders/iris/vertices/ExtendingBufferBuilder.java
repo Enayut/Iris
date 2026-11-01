@@ -1,7 +1,8 @@
 package net.irisshaders.iris.vertices;
 
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 
 public interface ExtendingBufferBuilder {
-	void iris$beginWithoutExtending(VertexFormat.Mode drawMode, VertexFormat vertexFormat);
+   void iris$beginWithoutExtending(PrimitiveTopology var1, VertexFormat var2);
 }

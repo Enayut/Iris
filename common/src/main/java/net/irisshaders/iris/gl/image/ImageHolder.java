@@ -1,11 +1,10 @@
 package net.irisshaders.iris.gl.image;
 
+import java.util.function.IntSupplier;
 import net.irisshaders.iris.gl.texture.InternalTextureFormat;
 
-import java.util.function.IntSupplier;
-
 public interface ImageHolder {
-	boolean hasImage(String name);
+   boolean hasImage(String var1);
 
-	void addTextureImage(IntSupplier textureID, InternalTextureFormat internalFormat, String name);
+   void addTextureImage(IntSupplier var1, InternalTextureFormat var2, String var3);
 }

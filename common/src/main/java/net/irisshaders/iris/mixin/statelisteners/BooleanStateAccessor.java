@@ -1,11 +1,11 @@
 package net.irisshaders.iris.mixin.statelisteners;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager.BooleanState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(GlStateManager.BooleanState.class)
+@Mixin(BooleanState.class)
 public interface BooleanStateAccessor {
-	@Accessor("enabled")
-	boolean isEnabled();
+   @Accessor("enabled")
+   boolean isEnabled();
 }

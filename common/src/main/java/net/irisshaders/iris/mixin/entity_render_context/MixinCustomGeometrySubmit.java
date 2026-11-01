@@ -1,47 +1,51 @@
 package net.irisshaders.iris.mixin.entity_render_context;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.PoseStack.Pose;
 import net.irisshaders.iris.mixinterface.ModelStorage;
 import net.irisshaders.iris.uniforms.CapturedRenderingState;
 import net.irisshaders.iris.vertices.ImmediateState;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.SubmitNodeCollector.CustomGeometryRenderer;
+import net.minecraft.client.renderer.feature.CustomFeatureRenderer.Submit;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(SubmitNodeStorage.CustomGeometrySubmit.class)
+@Mixin(Submit.class)
 public class MixinCustomGeometrySubmit implements ModelStorage {
-	@Unique
-	private int entityId, beId, itemId;
+   @Unique
+   private int entityId;
+   @Unique
+   private int beId;
+   @Unique
+   private int itemId;
+   @Unique
+   private boolean isRenderingBEs;
 
-	@Unique
-	private boolean isRenderingBEs;
+   @Override
+   public void iris$capture() {
+      this.entityId = CapturedRenderingState.INSTANCE.getCurrentRenderedEntity();
+      this.beId = CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity();
+      this.itemId = CapturedRenderingState.INSTANCE.getCurrentRenderedItem();
+      this.isRenderingBEs = ImmediateState.isRenderingBEs;
+   }
 
-	@Override
-	public void iris$capture() {
-		entityId = CapturedRenderingState.INSTANCE.getCurrentRenderedEntity();
-		beId = CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity();
-		itemId = CapturedRenderingState.INSTANCE.getCurrentRenderedItem();
-		isRenderingBEs = ImmediateState.isRenderingBEs;
-	}
+   @Override
+   public void iris$set() {
+      CapturedRenderingState.INSTANCE.setCurrentEntity(this.entityId);
+      CapturedRenderingState.INSTANCE.setCurrentBlockEntity(this.beId);
+      CapturedRenderingState.INSTANCE.setCurrentRenderedItem(this.itemId);
+   }
 
-	@Override
-	public void iris$set() {
-		CapturedRenderingState.INSTANCE.setCurrentEntity(entityId);
-		CapturedRenderingState.INSTANCE.setCurrentBlockEntity(beId);
-		CapturedRenderingState.INSTANCE.setCurrentRenderedItem(itemId);
-	}
+   @Override
+   public boolean iris$wasBE() {
+      return this.isRenderingBEs;
+   }
 
-	@Override
-	public boolean iris$wasBE() {
-		return isRenderingBEs;
-	}
-
-	@Inject(method = "<init>", at = @At("RETURN"))
-	private void iris$capture2(PoseStack.Pose pose, SubmitNodeCollector.CustomGeometryRenderer customGeometryRenderer, CallbackInfo ci) {
-		iris$capture();
-	}
+   @Inject(method = "<init>", at = @At("RETURN"))
+   private void iris$capture2(Pose pose, RenderType renderType, CustomGeometryRenderer customGeometryRenderer, CallbackInfo ci) {
+      this.iris$capture();
+   }
 }

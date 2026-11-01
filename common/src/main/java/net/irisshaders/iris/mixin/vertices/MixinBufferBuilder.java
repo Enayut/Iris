@@ -4,8 +4,9 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormatElement;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import java.util.Arrays;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.uniforms.CapturedRenderingState;
 import net.irisshaders.iris.vertices.BlockSensitiveBufferBuilder;
@@ -13,7 +14,6 @@ import net.irisshaders.iris.vertices.BufferBuilderPolygonView;
 import net.irisshaders.iris.vertices.ExtendedDataHelper;
 import net.irisshaders.iris.vertices.ImmediateState;
 import net.irisshaders.iris.vertices.IrisVertexFormats;
-import net.irisshaders.iris.vertices.MemoryAccess;
 import net.irisshaders.iris.vertices.MojangBufferAccessor;
 import net.irisshaders.iris.vertices.NormI8;
 import net.irisshaders.iris.vertices.NormalHelper;
@@ -27,239 +27,255 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.Arrays;
-
-/**
- * Dynamically and transparently extends the vanilla vertex formats with additional data
- */
 @Mixin(BufferBuilder.class)
 public abstract class MixinBufferBuilder implements VertexConsumer, BlockSensitiveBufferBuilder {
-	@Unique
-	private final BufferBuilderPolygonView polygon = new BufferBuilderPolygonView();
-	@Unique
-	private final Vector3f normal = new Vector3f();
-	@Unique
-	private final long[] vertexOffsets = new long[4];
-	@Shadow
-	private int elementsToFill;
-	@Unique
-	private boolean skipEndVertexOnce;
-	@Shadow
-	@Final
-	private VertexFormat.Mode mode;
-	@Shadow
-	@Final
-	private VertexFormat format;
-	@Shadow
-	@Final
-	private int[] offsetsByElement;
-	@Shadow
-	@Final
-	private boolean fastFormat;
-	@Shadow
-	private long vertexPointer;
-	@Shadow
-	private int vertices;
-	@Unique
-	private boolean extending;
-	@Unique
-	private boolean injectNormalAndUV1;
-	@Unique
-	private int iris$vertexCount;
-	@Unique
-	private int currentBlock = -1;
-	@Unique
-	private byte currentRenderType = -1;
-	@Unique
-	private int currentLocalPosX;
-	@Unique
-	private int currentLocalPosY;
-	@Unique
-	private int currentLocalPosZ;
-	@Shadow
-	@Final
-	private ByteBufferBuilder buffer;
+   @Unique
+   private static final int IRIS$UNKNOWN_OFFSET = -1;
+   @Unique
+   private final BufferBuilderPolygonView polygon = new BufferBuilderPolygonView();
+   @Unique
+   private final Vector3f normal = new Vector3f();
+   @Unique
+   private final long[] vertexOffsets = new long[4];
+   @Unique
+   private boolean skipEndVertexOnce;
+   @Shadow
+   @Final
+   private PrimitiveTopology primitiveTopology;
+   @Shadow
+   @Final
+   private VertexFormat format;
+   @Shadow
+   private long vertexPointer;
+   @Shadow
+   private int vertices;
+   @Unique
+   private boolean extending;
+   @Unique
+   private boolean injectNormalAndUV1;
+   @Unique
+   private int iris$vertexCount;
+   @Unique
+   private int currentBlock = -1;
+   @Unique
+   private byte currentRenderType = -1;
+   @Unique
+   private byte currentBlockEmission = -1;
+   @Unique
+   private int currentLocalPosX;
+   @Unique
+   private int currentLocalPosY;
+   @Unique
+   private int currentLocalPosZ;
+   @Unique
+   private int positionOffset = -1;
+   @Unique
+   private int uvOffset = -1;
+   @Unique
+   private int normalOffset = -1;
+   @Unique
+   private int midTexOffset = -1;
+   @Unique
+   private int tangentOffset = -1;
+   @Unique
+   private int midBlockOffset = -1;
+   @Unique
+   private int entityOffset = -1;
+   @Unique
+   private int entityIdOffset = -1;
+   @Shadow
+   @Final
+   private ByteBufferBuilder buffer;
 
-	@Shadow
-	public abstract VertexConsumer setNormal(float f, float g, float h);
+   @Shadow
+   public abstract VertexConsumer setNormal(float var1, float var2, float var3);
 
-	@Shadow
-	protected abstract long beginElement(VertexFormatElement vertexFormatElement);
+   @ModifyVariable(
+      method = "<init>",
+      at = @At(value = "INVOKE", target = "Lcom/mojang/renderpearl/api/vertex/VertexFormat;contains(Ljava/lang/String;)Z"),
+      argsOnly = true
+   )
+   private VertexFormat iris$extendFormat(VertexFormat format) {
+      this.injectNormalAndUV1 = false;
+      if (ImmediateState.skipExtension.get() || !ImmediateState.isRenderingLevel || !Iris.isPackInUseQuick()) {
+         return format;
+      }
 
-	@ModifyVariable(method = "<init>", at = @At(value = "FIELD", target = "Lcom/mojang/blaze3d/vertex/VertexFormatElement;POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;", ordinal = 0), argsOnly = true)
-	private VertexFormat iris$extendFormat(VertexFormat format) {
-		boolean iris$isTerrain = false;
-		injectNormalAndUV1 = false;
+      if (format.equals(DefaultVertexFormat.BLOCK) || format.equals(IrisVertexFormats.TERRAIN)) {
+         this.extending = true;
+         return IrisVertexFormats.TERRAIN;
+      }
 
-		if (ImmediateState.skipExtension.get() || !ImmediateState.isRenderingLevel || !Iris.isPackInUseQuick()) {
-			return format;
-		}
+      if (format.equals(DefaultVertexFormat.ENTITY) || format.equals(IrisVertexFormats.ENTITY)) {
+         this.extending = true;
+         return IrisVertexFormats.ENTITY;
+      }
 
-		if (format == DefaultVertexFormat.BLOCK || format == IrisVertexFormats.TERRAIN) {
-			extending = true;
-			iris$isTerrain = true;
-			injectNormalAndUV1 = false;
-			return IrisVertexFormats.TERRAIN;
-		} else if (format == DefaultVertexFormat.ENTITY || format == IrisVertexFormats.ENTITY) {
-			extending = true;
-			iris$isTerrain = false;
-			injectNormalAndUV1 = false;
-			return IrisVertexFormats.ENTITY;
-		} else if (format == DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP || format == IrisVertexFormats.GLYPH) {
-			extending = true;
-			iris$isTerrain = false;
-			injectNormalAndUV1 = true;
-			return IrisVertexFormats.GLYPH;
-		}
+      if (format.equals(DefaultVertexFormat.ENTITY_GLINT_SPECIAL) || format.equals(IrisVertexFormats.ENTITY_GLINT_SPECIAL)) {
+         this.extending = true;
+         return IrisVertexFormats.ENTITY_GLINT_SPECIAL;
+      }
 
-		return format;
-	}
+      if (!format.equals(DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR) && !format.equals(IrisVertexFormats.GLYPH)) {
+         return format;
+      }
 
-	@Redirect(method = "addVertex(FFFIFFIIFFF)V", at = @At(value = "FIELD", target = "Lcom/mojang/blaze3d/vertex/BufferBuilder;fastFormat:Z"))
-	private boolean fastFormat(BufferBuilder instance) {
-		return this.fastFormat && !extending;
-	}
+      this.extending = true;
+      this.injectNormalAndUV1 = true;
+      return IrisVertexFormats.GLYPH;
+   }
 
-	@Inject(method = "addVertex(FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;", at = @At("RETURN"))
-	private void injectMidBlock(float x, float y, float z, CallbackInfoReturnable<VertexConsumer> cir) {
-		if ((this.elementsToFill & IrisVertexFormats.MID_BLOCK_ELEMENT.mask()) != 0) {
-			long midBlockOffset = this.beginElement(IrisVertexFormats.MID_BLOCK_ELEMENT);
-			MemoryAccess.setInt(midBlockOffset, ExtendedDataHelper.computeMidBlock(x, y, z, currentLocalPosX, currentLocalPosY, currentLocalPosZ));
-			byte currentBlockEmission = -1;
-			MemoryAccess.setByte(midBlockOffset + 3, currentBlockEmission);
-		}
+   @Inject(method = "<init>", at = @At("TAIL"))
+   private void iris$cacheOffsets(ByteBufferBuilder buffer, PrimitiveTopology primitiveTopology, VertexFormat format, CallbackInfo ci) {
+      if (this.extending) {
+         this.positionOffset = IrisVertexFormats.getOffset(this.format, "Position");
+         this.uvOffset = IrisVertexFormats.getOffset(this.format, "UV0");
+         this.normalOffset = IrisVertexFormats.getOffset(this.format, "Normal");
+         this.midTexOffset = IrisVertexFormats.getOffset(this.format, "mc_midTexCoord");
+         this.tangentOffset = IrisVertexFormats.getOffset(this.format, "at_tangent");
+         this.midBlockOffset = IrisVertexFormats.getOffset(this.format, "at_midBlock");
+         this.entityOffset = IrisVertexFormats.getOffset(this.format, "mc_Entity");
+         this.entityIdOffset = IrisVertexFormats.getOffset(this.format, "iris_Entity");
+      }
+   }
 
-		if ((this.elementsToFill & IrisVertexFormats.ENTITY_ELEMENT.mask()) != 0) {
-			long offset = this.beginElement(IrisVertexFormats.ENTITY_ELEMENT);
-			// ENTITY_ELEMENT
-			MemoryAccess.setShort(offset, (short) currentBlock);
-			MemoryAccess.setShort(offset + 2, currentRenderType);
-		} else if ((this.elementsToFill & IrisVertexFormats.ENTITY_ID_ELEMENT.mask()) != 0) {
-			long offset = this.beginElement(IrisVertexFormats.ENTITY_ID_ELEMENT);
-			// ENTITY_ID_ELEMENT
-			MemoryAccess.setShort(offset, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedEntity());
-			MemoryAccess.setShort(offset + 2, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity());
-			MemoryAccess.setShort(offset + 4, (short) CapturedRenderingState.INSTANCE.getCurrentRenderedItem());
-		}
-	}
+   @Inject(method = "addVertex(FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;", at = @At("RETURN"))
+   private void iris$fillPerVertexData(float x, float y, float z, CallbackInfoReturnable<VertexConsumer> cir) {
+      if (this.extending && this.vertexPointer != -1L) {
+         if (this.midBlockOffset != -1) {
+            long offset = this.vertexPointer + this.midBlockOffset;
+            MemoryUtil.memPutInt(offset, ExtendedDataHelper.computeMidBlock(x, y, z, this.currentLocalPosX, this.currentLocalPosY, this.currentLocalPosZ));
+            MemoryUtil.memPutByte(offset + 3L, this.currentBlockEmission);
+         }
 
-	@Dynamic("Used to skip endLastVertex if the last push was made by Sodium")
-	@Inject(method = "push", at = @At("TAIL"), remap = false, require = 0)
-	private void iris$skipSodiumChange(CallbackInfo ci) {
-		skipEndVertexOnce = true;
-	}
+         if (this.entityOffset != -1) {
+            long offset = this.vertexPointer + this.entityOffset;
+            MemoryUtil.memPutShort(offset, (short)this.currentBlock);
+            MemoryUtil.memPutShort(offset + 2L, this.currentRenderType);
+         }
 
-	@Inject(method = "endLastVertex", at = @At("HEAD"))
-	private void iris$beforeNext(CallbackInfo ci) {
-		if (this.vertices == 0 || !extending) {
-			return;
-		}
+         if (this.entityIdOffset != -1) {
+            long offset = this.vertexPointer + this.entityIdOffset;
+            MemoryUtil.memPutShort(offset, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedEntity());
+            MemoryUtil.memPutShort(offset + 2L, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedBlockEntity());
+            MemoryUtil.memPutShort(offset + 4L, (short)CapturedRenderingState.INSTANCE.getCurrentRenderedItem());
+            MemoryUtil.memPutShort(offset + 6L, (short)0);
+         }
+      }
+   }
 
-		// We can't fill these yet.
-		this.elementsToFill = this.elementsToFill & ~IrisVertexFormats.MID_TEXTURE_ELEMENT.mask();
-		this.elementsToFill = this.elementsToFill & ~IrisVertexFormats.TANGENT_ELEMENT.mask();
+   @Inject(method = "push", at = @At("TAIL"), remap = false, require = 0)
+   @Dynamic("Used to skip endLastVertex if the last push was made by Sodium")
+   private void iris$skipSodiumChange(CallbackInfo ci) {
+      this.skipEndVertexOnce = true;
+   }
 
-		if (injectNormalAndUV1 && this.elementsToFill != (this.elementsToFill & ~VertexFormatElement.NORMAL.mask())) {
-			this.setNormal(0, 1, 0);
-		}
+   @Inject(method = "endLastVertex", at = @At("HEAD"))
+   private void iris$beforeNext(CallbackInfo ci) {
+      if (this.vertices != 0 && this.extending) {
+         if (this.injectNormalAndUV1) {
+            this.setNormal(0.0F, 1.0F, 0.0F);
+         }
 
-		if (skipEndVertexOnce) {
-			skipEndVertexOnce = false;
-			return;
-		}
+         if (this.skipEndVertexOnce) {
+            this.skipEndVertexOnce = false;
+         } else {
+            int vertexAmount = this.iris$vertexAmountForExtendedData();
+            if (vertexAmount != 0) {
+               this.vertexOffsets[this.iris$vertexCount] = this.vertexPointer - ((MojangBufferAccessor)this.buffer).getPointer();
+               this.iris$vertexCount++;
+               if (this.iris$vertexCount == vertexAmount) {
+                  this.fillExtendedData(vertexAmount);
+               }
+            }
+         }
+      }
+   }
 
-		if (mode != VertexFormat.Mode.QUADS && mode != VertexFormat.Mode.TRIANGLES) {
-			return;
-		}
+   @Override
+   public void beginBlock(int block, byte renderType, byte blockEmission, int localPosX, int localPosY, int localPosZ) {
+      this.currentBlock = block;
+      this.currentRenderType = renderType;
+      this.currentBlockEmission = blockEmission;
+      this.currentLocalPosX = localPosX;
+      this.currentLocalPosY = localPosY;
+      this.currentLocalPosZ = localPosZ;
+   }
 
-		vertexOffsets[iris$vertexCount] = vertexPointer - ((MojangBufferAccessor) buffer).getPointer();
+   @Override
+   public void endBlock() {
+      this.currentBlock = -1;
+      this.currentRenderType = -1;
+      this.currentBlockEmission = -1;
+      this.currentLocalPosX = 0;
+      this.currentLocalPosY = 0;
+      this.currentLocalPosZ = 0;
+   }
 
-		iris$vertexCount++;
+   @Unique
+   private int iris$vertexAmountForExtendedData() {
+      if (this.primitiveTopology == PrimitiveTopology.QUADS) {
+         return 4;
+      } else {
+         return this.primitiveTopology == PrimitiveTopology.TRIANGLES ? 3 : 0;
+      }
+   }
 
-		if (mode == VertexFormat.Mode.QUADS && iris$vertexCount == 4 || mode == VertexFormat.Mode.TRIANGLES && iris$vertexCount == 3) {
-			fillExtendedData(iris$vertexCount);
-		}
-	}
+   @Unique
+   private void fillExtendedData(int vertexAmount) {
+      this.iris$vertexCount = 0;
+      if (this.positionOffset != -1 && this.uvOffset != -1 && this.midTexOffset != -1 && this.normalOffset != -1 && this.tangentOffset != -1) {
+         long basePointer = ((MojangBufferAccessor)this.buffer).getPointer();
+         this.polygon.setup(basePointer, this.vertexOffsets, this.positionOffset, this.uvOffset);
+         float midU = 0.0F;
+         float midV = 0.0F;
 
-	@Override
-	public void beginBlock(int block, byte renderType, byte blockEmission, int localPosX, int localPosY, int localPosZ) {
-		this.currentBlock = block;
-		this.currentRenderType = renderType;
-		this.currentLocalPosX = localPosX;
-		this.currentLocalPosY = localPosY;
-		this.currentLocalPosZ = localPosZ;
-	}
+         for (int vertex = 0; vertex < vertexAmount; vertex++) {
+            midU += this.polygon.u(vertex);
+            midV += this.polygon.v(vertex);
+         }
 
-	@Override
-	public void endBlock() {
-		this.currentBlock = -1;
-		this.currentRenderType = -1;
-		this.currentLocalPosX = 0;
-		this.currentLocalPosY = 0;
-		this.currentLocalPosZ = 0;
-	}
+         midU /= vertexAmount;
+         midV /= vertexAmount;
+         if (vertexAmount == 3) {
+            for (int vertex = 0; vertex < vertexAmount; vertex++) {
+               long newPointer = basePointer + this.vertexOffsets[vertex];
+               int vertexNormal = MemoryUtil.memGetInt(newPointer + this.normalOffset);
+               int tangent = NormalHelper.computeTangentSmooth(
+                  NormI8.unpackX(vertexNormal), NormI8.unpackY(vertexNormal), NormI8.unpackZ(vertexNormal), this.polygon
+               );
+               MemoryUtil.memPutFloat(newPointer + this.midTexOffset, midU);
+               MemoryUtil.memPutFloat(newPointer + this.midTexOffset + 4L, midV);
+               MemoryUtil.memPutInt(newPointer + this.tangentOffset, tangent);
+            }
+         } else {
+            boolean recalculateNormal = ImmediateState.isRenderingLevel;
+            NormalHelper.computeFaceNormal(this.normal, this.polygon);
+            int packedNormal = 0;
+            if (recalculateNormal) {
+               packedNormal = NormI8.pack(this.normal.x, this.normal.y, this.normal.z, 0.0F);
+            }
 
-	@Unique
-	private void fillExtendedData(int vertexAmount) {
-		iris$vertexCount = 0;
+            int tangent = NormalHelper.computeTangent(this.normal.x, this.normal.y, this.normal.z, this.polygon);
 
-		int stride = format.getVertexSize();
+            for (int vertex = 0; vertex < vertexAmount; vertex++) {
+               long newPointer = basePointer + this.vertexOffsets[vertex];
+               MemoryUtil.memPutFloat(newPointer + this.midTexOffset, midU);
+               MemoryUtil.memPutFloat(newPointer + this.midTexOffset + 4L, midV);
+               if (recalculateNormal) {
+                  MemoryUtil.memPutInt(newPointer + this.normalOffset, packedNormal);
+               }
 
-		polygon.setup(((MojangBufferAccessor) buffer).getPointer(), vertexOffsets, stride, vertexAmount);
+               MemoryUtil.memPutInt(newPointer + this.tangentOffset, tangent);
+            }
+         }
 
-		float midU = 0;
-		float midV = 0;
-
-		for (int vertex = 0; vertex < vertexAmount; vertex++) {
-			midU += polygon.u(vertex);
-			midV += polygon.v(vertex);
-		}
-
-		midU /= vertexAmount;
-		midV /= vertexAmount;
-
-		int midTexOffset = this.offsetsByElement[IrisVertexFormats.MID_TEXTURE_ELEMENT.id()];
-		int normalOffset = this.offsetsByElement[VertexFormatElement.NORMAL.id()];
-		int tangentOffset = this.offsetsByElement[IrisVertexFormats.TANGENT_ELEMENT.id()];
-		if (vertexAmount == 3) {
-			// NormalHelper.computeFaceNormalTri(normal, polygon);	// Removed to enable smooth shaded triangles. Mods rendering triangles with bad normals need to recalculate their normals manually or otherwise shading might be inconsistent.
-
-			for (int vertex = 0; vertex < vertexAmount; vertex++) {
-				long newPointer = ((MojangBufferAccessor) buffer).getPointer() + vertexOffsets[vertex];
-				int vertexNormal = MemoryAccess.getInt(newPointer + normalOffset); // retrieve per-vertex normal
-
-				int tangent = NormalHelper.computeTangentSmooth(NormI8.unpackX(vertexNormal), NormI8.unpackY(vertexNormal), NormI8.unpackZ(vertexNormal), polygon);
-
-				MemoryAccess.setFloat(newPointer + midTexOffset, midU);
-				MemoryAccess.setFloat(newPointer + midTexOffset + 4, midV);
-				MemoryAccess.setInt(newPointer + tangentOffset, tangent);
-			}
-		} else {
-			// TODO: Temporary fix for EMI item batching
-			boolean recalculateNormal = ImmediateState.isRenderingLevel;
-			NormalHelper.computeFaceNormal(normal, polygon);
-			int packedNormal = 0;
-			if (recalculateNormal) {
-				packedNormal = NormI8.pack(normal.x, normal.y, normal.z, 0.0f);
-			}
-			int tangent = NormalHelper.computeTangent(normal.x, normal.y, normal.z, polygon);
-
-			for (int vertex = 0; vertex < vertexAmount; vertex++) {
-				long newPointer = ((MojangBufferAccessor) buffer).getPointer() + vertexOffsets[vertex];
-
-				MemoryAccess.setFloat(newPointer + midTexOffset, midU);
-				MemoryAccess.setFloat(newPointer + midTexOffset + 4, midV);
-				if (recalculateNormal) {
-					MemoryAccess.setInt(newPointer + normalOffset, packedNormal);
-				}
-				MemoryAccess.setInt(newPointer + tangentOffset, tangent);
-			}
-		}
-
-		Arrays.fill(vertexOffsets, 0);
-	}
+         Arrays.fill(this.vertexOffsets, 0L);
+      } else {
+         Arrays.fill(this.vertexOffsets, 0L);
+      }
+   }
 }

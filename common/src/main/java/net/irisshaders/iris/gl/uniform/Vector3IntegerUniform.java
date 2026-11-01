@@ -1,44 +1,37 @@
 package net.irisshaders.iris.gl.uniform;
 
+import java.util.function.Supplier;
 import net.irisshaders.iris.gl.IrisRenderSystem;
 import net.irisshaders.iris.gl.state.ValueUpdateNotifier;
 import org.joml.Vector3i;
 
-import java.util.function.Supplier;
-
 public class Vector3IntegerUniform extends Uniform {
-	private final Vector3i cachedValue;
-	private final Supplier<Vector3i> value;
+   private final Vector3i cachedValue = new Vector3i();
+   private final Supplier<Vector3i> value;
 
-	Vector3IntegerUniform(int location, Supplier<Vector3i> value) {
-		super(location);
+   Vector3IntegerUniform(int location, Supplier<Vector3i> value) {
+      super(location);
+      this.value = value;
+   }
 
-		this.cachedValue = new Vector3i();
-		this.value = value;
-	}
+   Vector3IntegerUniform(int location, Supplier<Vector3i> value, ValueUpdateNotifier notifier) {
+      super(location, notifier);
+      this.value = value;
+   }
 
-	Vector3IntegerUniform(int location, Supplier<Vector3i> value, ValueUpdateNotifier notifier) {
-		super(location, notifier);
+   @Override
+   public void update() {
+      this.updateValue();
+      if (this.notifier != null) {
+         this.notifier.setListener(this::updateValue);
+      }
+   }
 
-		this.cachedValue = new Vector3i();
-		this.value = value;
-	}
-
-	@Override
-	public void update() {
-		updateValue();
-
-		if (notifier != null) {
-			notifier.setListener(this::updateValue);
-		}
-	}
-
-	private void updateValue() {
-		Vector3i newValue = value.get();
-
-		if (!newValue.equals(cachedValue)) {
-			cachedValue.set(newValue.x(), newValue.y(), newValue.z());
-			IrisRenderSystem.uniform3i(location, cachedValue.x(), cachedValue.y(), cachedValue.z());
-		}
-	}
+   private void updateValue() {
+      Vector3i newValue = this.value.get();
+      if (!newValue.equals(this.cachedValue)) {
+         this.cachedValue.set(newValue.x(), newValue.y(), newValue.z());
+         IrisRenderSystem.uniform3i(this.location, this.cachedValue.x(), this.cachedValue.y(), this.cachedValue.z());
+      }
+   }
 }

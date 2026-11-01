@@ -1,31 +1,32 @@
 package net.irisshaders.iris.vertices;
 
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 
 public interface IrisExtendedBufferBuilder {
-	VertexFormat iris$format();
+   VertexFormat iris$format();
 
-	VertexFormat.Mode iris$mode();
+   PrimitiveTopology iris$mode();
 
-	boolean iris$extending();
+   boolean iris$extending();
 
-	boolean iris$isTerrain();
+   boolean iris$isTerrain();
 
-	boolean iris$injectNormalAndUV1();
+   boolean iris$injectNormalAndUV1();
 
-	int iris$vertexCount();
+   int iris$vertexCount();
 
-	void iris$incrementVertexCount();
+   void iris$incrementVertexCount();
 
-	void iris$resetVertexCount();
+   void iris$resetVertexCount();
 
-	short iris$currentBlock();
+   short iris$currentBlock();
 
-	short iris$currentRenderType();
+   short iris$currentRenderType();
 
-	int iris$currentLocalPosX();
+   int iris$currentLocalPosX();
 
-	int iris$currentLocalPosY();
+   int iris$currentLocalPosY();
 
-	int iris$currentLocalPosZ();
+   int iris$currentLocalPosZ();
 }

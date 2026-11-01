@@ -8,6 +8,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.narration.NarratableEntry.NarrationPriority;
 import net.minecraft.client.gui.navigation.FocusNavigationEvent;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.input.KeyEvent;
@@ -16,77 +17,69 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public abstract class AbstractElementWidget<T extends OptionMenuElement> implements GuiEventListener, NarratableEntry {
-	public static final AbstractElementWidget<OptionMenuElement> EMPTY = new AbstractElementWidget<>(null) {
-		@Override
-		public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float tickDelta, boolean hovered) {
-		}
+   public static final AbstractElementWidget<OptionMenuElement> EMPTY = new AbstractElementWidget<OptionMenuElement>(null) {
+      @Override
+      public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float tickDelta, boolean hovered) {
+      }
 
-		@Override
-		public @Nullable ComponentPath nextFocusPath(FocusNavigationEvent pGuiEventListener0) {
-			return null;
-		}
+      @Nullable
+      @Override
+      public ComponentPath nextFocusPath(FocusNavigationEvent pGuiEventListener0) {
+         return null;
+      }
 
-		@Override
-		public @NotNull ScreenRectangle getRectangle() {
-			return ScreenRectangle.empty();
-		}
-	};
-	protected final T element;
-	public ScreenRectangle bounds = ScreenRectangle.empty();
-	private boolean focused;
+      @NotNull
+      @Override
+      public ScreenRectangle getRectangle() {
+         return ScreenRectangle.empty();
+      }
+   };
+   protected final T element;
+   public ScreenRectangle bounds = ScreenRectangle.empty();
+   private boolean focused;
 
-	public AbstractElementWidget(T element) {
-		this.element = element;
-	}
+   public AbstractElementWidget(T element) {
+      this.element = element;
+   }
 
-	public void init(ShaderPackScreen screen, NavigationController navigation) {
-	}
+   public void init(ShaderPackScreen screen, NavigationController navigation) {
+   }
 
-	public abstract void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float tickDelta, boolean hovered);
+   public abstract void render(GuiGraphicsExtractor var1, int var2, int var3, float var4, boolean var5);
 
-	@Override
-	public boolean mouseClicked(MouseButtonEvent event, boolean bl2) {
-		return false;
-	}
+   public boolean mouseClicked(MouseButtonEvent event, boolean bl2) {
+      return false;
+   }
 
-	@Override
-	public boolean mouseReleased(MouseButtonEvent event) {
-		return false;
-	}
+   public boolean mouseReleased(MouseButtonEvent event) {
+      return false;
+   }
 
-	@Override
-	public boolean keyPressed(KeyEvent event) {
-		return false;
-	}
+   public boolean keyPressed(KeyEvent event) {
+      return false;
+   }
 
-	@Override
-	public boolean isFocused() {
-		return focused;
-	}
+   public boolean isFocused() {
+      return this.focused;
+   }
 
-	@Override
-	public void setFocused(boolean focused) {
-		this.focused = focused;
-	}
+   public void setFocused(boolean focused) {
+      this.focused = focused;
+   }
 
-	@Nullable
-	@Override
-	public ComponentPath nextFocusPath(FocusNavigationEvent pGuiEventListener0) {
-		return (!isFocused()) ? ComponentPath.leaf(this) : null;
-	}
+   @Nullable
+   public ComponentPath nextFocusPath(FocusNavigationEvent pGuiEventListener0) {
+      return !this.isFocused() ? ComponentPath.leaf(this) : null;
+   }
 
-	@Override
-	public ScreenRectangle getRectangle() {
-		return bounds;
-	}
+   public ScreenRectangle getRectangle() {
+      return this.bounds;
+   }
 
-	@Override
-	public NarrationPriority narrationPriority() {
-		return NarrationPriority.NONE;
-	}
+   public NarrationPriority narrationPriority() {
+      return NarrationPriority.NONE;
+   }
 
-	@Override
-	public void updateNarration(NarrationElementOutput p0) {
-
-	}
+   public void updateNarration(NarrationElementOutput p0) {
+   }
 }

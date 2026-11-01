@@ -6,71 +6,59 @@ import org.joml.Vector2f;
 import org.joml.Vector3i;
 
 public class ComputeDirectiveParser {
-	public static void setComputeWorkGroups(ComputeSource source, ConstDirectiveParser.ConstDirective directive) {
-		if (!directive.getValue().startsWith("ivec3")) {
-			Iris.logger.error("Failed to process " + directive + ": value was not a valid ivec3 constructor");
-		}
+   public static void setComputeWorkGroups(ComputeSource source, ConstDirectiveParser.ConstDirective directive) {
+      if (!directive.getValue().startsWith("ivec3")) {
+         Iris.logger.error("Failed to process " + directive + ": value was not a valid ivec3 constructor");
+      }
 
-		String ivec3Args = directive.getValue().substring("ivec3".length()).trim();
+      String ivec3Args = directive.getValue().substring("ivec3".length()).trim();
+      if (!ivec3Args.startsWith("(") || !ivec3Args.endsWith(")")) {
+         Iris.logger.error("Failed to process " + directive + ": value was not a valid ivec3 constructor");
+      }
 
-		if (!ivec3Args.startsWith("(") || !ivec3Args.endsWith(")")) {
-			Iris.logger.error("Failed to process " + directive + ": value was not a valid ivec3 constructor");
-		}
+      ivec3Args = ivec3Args.substring(1, ivec3Args.length() - 1);
+      String[] parts = ivec3Args.split(",");
 
-		ivec3Args = ivec3Args.substring(1, ivec3Args.length() - 1);
+      for (int i = 0; i < parts.length; i++) {
+         parts[i] = parts[i].trim();
+      }
 
-		String[] parts = ivec3Args.split(",");
+      if (parts.length != 3) {
+         Iris.logger.error("Failed to process " + directive + ": expected 3 arguments to a ivec3 constructor, got " + parts.length);
+      }
 
-		for (int i = 0; i < parts.length; i++) {
-			parts[i] = parts[i].trim();
-		}
+      try {
+         source.setWorkGroups(new Vector3i(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])));
+      } catch (NumberFormatException e) {
+         Iris.logger.error("Failed to process " + directive, e);
+      }
+   }
 
-		if (parts.length != 3) {
-			Iris.logger.error("Failed to process " + directive +
-				": expected 3 arguments to a ivec3 constructor, got " + parts.length);
-		}
+   public static void setComputeWorkGroupsRelative(ComputeSource source, ConstDirectiveParser.ConstDirective directive) {
+      if (!directive.getValue().startsWith("vec2")) {
+         Iris.logger.error("Failed to process " + directive + ": value was not a valid vec2 constructor");
+      }
 
-		try {
-			source.setWorkGroups(new Vector3i(
-				Integer.parseInt(parts[0]),
-				Integer.parseInt(parts[1]),
-				Integer.parseInt(parts[2])));
-		} catch (NumberFormatException e) {
-			Iris.logger.error("Failed to process " + directive, e);
-		}
-	}
+      String vec2Args = directive.getValue().substring("vec2".length()).trim();
+      if (!vec2Args.startsWith("(") || !vec2Args.endsWith(")")) {
+         Iris.logger.error("Failed to process " + directive + ": value was not a valid vec2 constructor");
+      }
 
-	public static void setComputeWorkGroupsRelative(ComputeSource source, ConstDirectiveParser.ConstDirective directive) {
-		if (!directive.getValue().startsWith("vec2")) {
-			Iris.logger.error("Failed to process " + directive + ": value was not a valid vec2 constructor");
-		}
+      vec2Args = vec2Args.substring(1, vec2Args.length() - 1);
+      String[] parts = vec2Args.split(",");
 
-		String vec2Args = directive.getValue().substring("vec2".length()).trim();
+      for (int i = 0; i < parts.length; i++) {
+         parts[i] = parts[i].trim();
+      }
 
-		if (!vec2Args.startsWith("(") || !vec2Args.endsWith(")")) {
-			Iris.logger.error("Failed to process " + directive + ": value was not a valid vec2 constructor");
-		}
+      if (parts.length != 2) {
+         Iris.logger.error("Failed to process " + directive + ": expected 2 arguments to a vec2 constructor, got " + parts.length);
+      }
 
-		vec2Args = vec2Args.substring(1, vec2Args.length() - 1);
-
-		String[] parts = vec2Args.split(",");
-
-		for (int i = 0; i < parts.length; i++) {
-			parts[i] = parts[i].trim();
-		}
-
-		if (parts.length != 2) {
-			Iris.logger.error("Failed to process " + directive +
-				": expected 2 arguments to a vec2 constructor, got " + parts.length);
-		}
-
-		try {
-			source.setWorkGroupRelative(new Vector2f(
-				Float.parseFloat(parts[0]),
-				Float.parseFloat(parts[1])
-			));
-		} catch (NumberFormatException e) {
-			Iris.logger.error("Failed to process " + directive, e);
-		}
-	}
+      try {
+         source.setWorkGroupRelative(new Vector2f(Float.parseFloat(parts[0]), Float.parseFloat(parts[1])));
+      } catch (NumberFormatException e) {
+         Iris.logger.error("Failed to process " + directive, e);
+      }
+   }
 }

@@ -2,6 +2,8 @@ package net.irisshaders.iris.gl.program;
 
 import com.google.common.collect.ImmutableSet;
 import com.mojang.blaze3d.systems.RenderSystem;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.irisshaders.iris.gl.IrisRenderSystem;
 import net.irisshaders.iris.gl.image.ImageHolder;
 import net.irisshaders.iris.gl.sampler.GlSampler;
@@ -15,143 +17,128 @@ import net.irisshaders.iris.gl.texture.InternalTextureFormat;
 import net.irisshaders.iris.gl.texture.TextureType;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.function.IntSupplier;
-import java.util.function.Supplier;
-
 public class ProgramBuilder extends ProgramUniforms.Builder implements SamplerHolder, ImageHolder {
-	private final int program;
-	private final ProgramSamplers.Builder samplers;
-	private final ProgramImages.Builder images;
+   private final int program;
+   private final ProgramSamplers.Builder samplers;
+   private final ProgramImages.Builder images;
 
-	private ProgramBuilder(String name, int program, ImmutableSet<Integer> reservedTextureUnits) {
-		super(name, program);
+   private ProgramBuilder(String name, int program, ImmutableSet<Integer> reservedTextureUnits) {
+      super(name, program);
+      this.program = program;
+      this.samplers = ProgramSamplers.builder(program, reservedTextureUnits);
+      this.images = ProgramImages.builder(program);
+   }
 
-		this.program = program;
-		this.samplers = ProgramSamplers.builder(program, reservedTextureUnits);
-		this.images = ProgramImages.builder(program);
-	}
+   public static ProgramBuilder begin(
+      String name, @Nullable String vertexSource, @Nullable String geometrySource, @Nullable String fragmentSource, ImmutableSet<Integer> reservedTextureUnits
+   ) {
+      RenderSystem.assertOnRenderThread();
+      GlShader vertex = buildShader(ShaderType.VERTEX, name + ".vsh", vertexSource);
+      GlShader geometry;
+      if (geometrySource != null) {
+         geometry = buildShader(ShaderType.GEOMETRY, name + ".gsh", geometrySource);
+      } else {
+         geometry = null;
+      }
 
-	public static ProgramBuilder begin(String name, @Nullable String vertexSource, @Nullable String geometrySource,
-									   @Nullable String fragmentSource, ImmutableSet<Integer> reservedTextureUnits) {
-		RenderSystem.assertOnRenderThread();
+      GlShader fragment = buildShader(ShaderType.FRAGMENT, name + ".fsh", fragmentSource);
+      int programId;
+      if (geometry != null) {
+         programId = ProgramCreator.create(name, vertex, geometry, fragment);
+      } else {
+         programId = ProgramCreator.create(name, vertex, fragment);
+      }
 
-		GlShader vertex;
-		GlShader geometry;
-		GlShader fragment;
+      vertex.destroy();
+      if (geometry != null) {
+         geometry.destroy();
+      }
 
-		vertex = buildShader(ShaderType.VERTEX, name + ".vsh", vertexSource);
+      fragment.destroy();
+      return new ProgramBuilder(name, programId, reservedTextureUnits);
+   }
 
-		if (geometrySource != null) {
-			geometry = buildShader(ShaderType.GEOMETRY, name + ".gsh", geometrySource);
-		} else {
-			geometry = null;
-		}
+   public static ProgramBuilder beginCompute(String name, @Nullable String source, ImmutableSet<Integer> reservedTextureUnits) {
+      RenderSystem.assertOnRenderThread();
+      if (!IrisRenderSystem.supportsCompute()) {
+         throw new IllegalStateException("This PC does not support compute shaders, but it's attempting to be used???");
+      }
 
-		fragment = buildShader(ShaderType.FRAGMENT, name + ".fsh", fragmentSource);
+      GlShader compute = buildShader(ShaderType.COMPUTE, name + ".csh", source);
+      int programId = ProgramCreator.create(name, compute);
+      compute.destroy();
+      return new ProgramBuilder(name, programId, reservedTextureUnits);
+   }
 
-		int programId;
+   private static GlShader buildShader(ShaderType shaderType, String name, @Nullable String source) {
+      try {
+         return new GlShader(shaderType, name, source);
+      } catch (ShaderCompileException e) {
+         throw e;
+      } catch (RuntimeException e) {
+         throw new RuntimeException("Failed to compile " + shaderType + " shader for program " + name, e);
+      }
+   }
 
-		if (geometry != null) {
-			programId = ProgramCreator.create(name, vertex, geometry, fragment);
-		} else {
-			programId = ProgramCreator.create(name, vertex, fragment);
-		}
+   public void bindAttributeLocation(int index, String name) {
+      IrisRenderSystem.bindAttributeLocation(this.program, index, name);
+   }
 
-		vertex.destroy();
+   public Program build() {
+      return new Program(this.program, super.buildUniforms(), this.samplers.build(), this.images.build());
+   }
 
-		if (geometry != null) {
-			geometry.destroy();
-		}
+   public ComputeProgram buildCompute() {
+      return new ComputeProgram(this.program, super.buildUniforms(), this.samplers.build(), this.images.build());
+   }
 
-		fragment.destroy();
+   @Override
+   public void addExternalSampler(int textureUnit, String... names) {
+      this.samplers.addExternalSampler(textureUnit, names);
+   }
 
-		return new ProgramBuilder(name, programId, reservedTextureUnits);
-	}
+   @Override
+   public boolean hasSampler(String name) {
+      return this.samplers.hasSampler(name);
+   }
 
-	public static ProgramBuilder beginCompute(String name, @Nullable String source, ImmutableSet<Integer> reservedTextureUnits) {
-		RenderSystem.assertOnRenderThread();
+   @Override
+   public boolean addDefaultSampler(IntSupplier sampler, String... names) {
+      return this.samplers.addDefaultSampler(sampler, names);
+   }
 
-		if (!IrisRenderSystem.supportsCompute()) {
-			throw new IllegalStateException("This PC does not support compute shaders, but it's attempting to be used???");
-		}
+   @Override
+   public boolean addDefaultSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names) {
+      return this.samplers.addDefaultSampler(type, texture, notifier, sampler, names);
+   }
 
-		GlShader compute = buildShader(ShaderType.COMPUTE, name + ".csh", source);
+   @Override
+   public boolean addDynamicSampler(IntSupplier sampler, GlSampler glSampler, String... names) {
+      return this.samplers.addDynamicSampler(sampler, glSampler, names);
+   }
 
-		int programId = ProgramCreator.create(name, compute);
+   @Override
+   public boolean addDynamicSampler(TextureType type, IntSupplier texture, Supplier<GlSampler> sampler, String... names) {
+      return this.samplers.addDynamicSampler(type, texture, sampler, names);
+   }
 
-		compute.destroy();
+   @Override
+   public boolean addDynamicSampler(IntSupplier sampler, GlSampler glSampler, ValueUpdateNotifier notifier, String... names) {
+      return this.samplers.addDynamicSampler(sampler, glSampler, notifier, names);
+   }
 
-		return new ProgramBuilder(name, programId, reservedTextureUnits);
-	}
+   @Override
+   public boolean addDynamicSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names) {
+      return this.samplers.addDynamicSampler(type, texture, notifier, sampler, names);
+   }
 
-	private static GlShader buildShader(ShaderType shaderType, String name, @Nullable String source) {
-		try {
-			return new GlShader(shaderType, name, source);
-		} catch (ShaderCompileException e) {
-			throw e;
-		} catch (RuntimeException e) {
-			throw new RuntimeException("Failed to compile " + shaderType + " shader for program " + name, e);
-		}
-	}
+   @Override
+   public boolean hasImage(String name) {
+      return this.images.hasImage(name);
+   }
 
-	public void bindAttributeLocation(int index, String name) {
-		IrisRenderSystem.bindAttributeLocation(program, index, name);
-	}
-
-	public Program build() {
-		return new Program(program, super.buildUniforms(), this.samplers.build(), this.images.build());
-	}
-
-	public ComputeProgram buildCompute() {
-		return new ComputeProgram(program, super.buildUniforms(), this.samplers.build(), this.images.build());
-	}
-
-	@Override
-	public void addExternalSampler(int textureUnit, String... names) {
-		samplers.addExternalSampler(textureUnit, names);
-	}
-
-	@Override
-	public boolean hasSampler(String name) {
-		return samplers.hasSampler(name);
-	}
-
-	@Override
-	public boolean addDefaultSampler(IntSupplier sampler, String... names) {
-		return samplers.addDefaultSampler(sampler, names);
-	}
-
-	@Override
-	public boolean addDefaultSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names) {
-		return samplers.addDefaultSampler(type, texture, notifier, sampler, names);
-	}
-
-	@Override
-	public boolean addDynamicSampler(IntSupplier sampler, GlSampler glSampler, String... names) {
-		return samplers.addDynamicSampler(sampler, glSampler, names);
-	}
-
-	@Override
-	public boolean addDynamicSampler(TextureType type, IntSupplier texture, Supplier<GlSampler> sampler, String... names) {
-		return samplers.addDynamicSampler(type, texture, sampler, names);
-	}
-
-	public boolean addDynamicSampler(IntSupplier sampler, GlSampler glSampler, ValueUpdateNotifier notifier, String... names) {
-		return samplers.addDynamicSampler(sampler, glSampler, notifier, names);
-	}
-
-	@Override
-	public boolean addDynamicSampler(TextureType type, IntSupplier texture, ValueUpdateNotifier notifier, Supplier<GlSampler> sampler, String... names) {
-		return samplers.addDynamicSampler(type, texture, notifier, sampler, names);
-	}
-
-	@Override
-	public boolean hasImage(String name) {
-		return images.hasImage(name);
-	}
-
-	@Override
-	public void addTextureImage(IntSupplier textureID, InternalTextureFormat internalFormat, String name) {
-		images.addTextureImage(textureID, internalFormat, name);
-	}
+   @Override
+   public void addTextureImage(IntSupplier textureID, InternalTextureFormat internalFormat, String name) {
+      this.images.addTextureImage(textureID, internalFormat, name);
+   }
 }

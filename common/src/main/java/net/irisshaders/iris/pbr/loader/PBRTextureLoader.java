@@ -5,18 +5,11 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import org.jetbrains.annotations.NotNull;
 
 public interface PBRTextureLoader<T extends AbstractTexture> {
-	/**
-	 * This method must not modify global GL state except the texture binding for {@code GL_TEXTURE_2D}.
-	 *
-	 * @param texture            The base texture.
-	 * @param resourceManager    The resource manager.
-	 * @param pbrTextureConsumer The consumer that accepts resulting PBR textures.
-	 */
-	void load(T texture, ResourceManager resourceManager, PBRTextureConsumer pbrTextureConsumer);
+   void load(T var1, ResourceManager var2, PBRTextureLoader.PBRTextureConsumer var3);
 
-	interface PBRTextureConsumer {
-		void acceptNormalTexture(@NotNull AbstractTexture texture);
+   interface PBRTextureConsumer {
+      void acceptNormalTexture(@NotNull AbstractTexture var1);
 
-		void acceptSpecularTexture(@NotNull AbstractTexture texture);
-	}
+      void acceptSpecularTexture(@NotNull AbstractTexture var1);
+   }
 }

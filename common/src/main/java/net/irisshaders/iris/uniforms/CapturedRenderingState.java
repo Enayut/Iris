@@ -6,138 +6,130 @@ import org.joml.Matrix4fc;
 import org.joml.Vector3d;
 
 public class CapturedRenderingState {
+   public static final CapturedRenderingState INSTANCE = new CapturedRenderingState();
+   private static final Vector3d ZERO_VECTOR_3d = new Vector3d();
+   private Matrix4fc gbufferModelView;
+   private Matrix4fc gbufferProjection;
+   private Vector3d fogColor;
+   private float fogDensity;
+   private float darknessLightFactor;
+   private float tickDelta;
+   private float realTickDelta;
+   private int currentRenderedBlockEntity;
+   private int currentRenderedEntity = -1;
+   private int currentRenderedItem = -1;
+   private int textureReloadCount = 0;
+   private float currentAlphaTest;
+   private float cloudTime;
 
-	public static final CapturedRenderingState INSTANCE = new CapturedRenderingState();
+   private CapturedRenderingState() {
+   }
 
-	private static final Vector3d ZERO_VECTOR_3d = new Vector3d();
+   public Matrix4fc getGbufferModelView() {
+      return this.gbufferModelView;
+   }
 
-	private Matrix4fc gbufferModelView;
-	private Matrix4fc gbufferProjection;
-	private Vector3d fogColor;
-	private float fogDensity;
-	private float darknessLightFactor;
-	private float tickDelta;
-	private float realTickDelta;
-	private int currentRenderedBlockEntity;
+   public void setGbufferModelView(Matrix4fc gbufferModelView) {
+      this.gbufferModelView = gbufferModelView;
+   }
 
-	private int currentRenderedEntity = -1;
-	private int currentRenderedItem = -1;
-	private int textureReloadCount = 0;
+   public Matrix4fc getGbufferProjection() {
+      return this.gbufferProjection;
+   }
 
-	private float currentAlphaTest;
-	private float cloudTime;
+   public void setGbufferProjection(Matrix4f gbufferProjection) {
+      this.gbufferProjection = new Matrix4f(gbufferProjection);
+   }
 
-	private CapturedRenderingState() {}
+   public Vector3d getFogColor() {
+      return Minecraft.getInstance().level != null && this.fogColor != null ? this.fogColor : ZERO_VECTOR_3d;
+   }
 
-	public Matrix4fc getGbufferModelView() {
-		return gbufferModelView;
-	}
+   public void setFogColor(float red, float green, float blue) {
+      this.fogColor = new Vector3d(red, green, blue);
+   }
 
-	public void setGbufferModelView(Matrix4fc gbufferModelView) {
-		this.gbufferModelView = gbufferModelView;
-	}
+   public float getFogDensity() {
+      return this.fogDensity;
+   }
 
-	public Matrix4fc getGbufferProjection() {
-		return gbufferProjection;
-	}
+   public void setFogDensity(float fogDensity) {
+      this.fogDensity = fogDensity;
+   }
 
-	public void setGbufferProjection(Matrix4f gbufferProjection) {
-		this.gbufferProjection = new Matrix4f(gbufferProjection);
-	}
+   public float getTickDelta() {
+      return this.tickDelta;
+   }
 
-	public Vector3d getFogColor() {
-		if (Minecraft.getInstance().level == null || fogColor == null) {
-			return ZERO_VECTOR_3d;
-		}
+   public void setTickDelta(float tickDelta) {
+      this.tickDelta = tickDelta;
+   }
 
-		return fogColor;
-	}
+   public float getRealTickDelta() {
+      return this.realTickDelta;
+   }
 
-	public void setFogColor(float red, float green, float blue) {
-		fogColor = new Vector3d(red, green, blue);
-	}
+   public void setRealTickDelta(float tickDelta) {
+      this.realTickDelta = tickDelta;
+   }
 
-	public float getFogDensity() {
-		return fogDensity;
-	}
+   public void setCurrentBlockEntity(int entity) {
+      this.currentRenderedBlockEntity = entity;
+   }
 
-	public void setFogDensity(float fogDensity) {
-		this.fogDensity = fogDensity;
-	}
+   public int getCurrentRenderedBlockEntity() {
+      return this.currentRenderedBlockEntity;
+   }
 
-	public float getTickDelta() {
-		return tickDelta;
-	}
+   public void setCurrentEntity(int entity) {
+      this.currentRenderedEntity = entity;
+   }
 
-	public void setTickDelta(float tickDelta) {
-		this.tickDelta = tickDelta;
-	}
+   public int getCurrentRenderedEntity() {
+      return this.currentRenderedEntity;
+   }
 
-	public float getRealTickDelta() {
-		return realTickDelta;
-	}
+   public int getCurrentRenderedItem() {
+      return this.currentRenderedItem;
+   }
 
-	public void setRealTickDelta(float tickDelta) {
-		this.realTickDelta = tickDelta;
-	}
+   public void setCurrentRenderedItem(int item) {
+      this.currentRenderedItem = item;
+   }
 
-	public void setCurrentBlockEntity(int entity) {
-		this.currentRenderedBlockEntity = entity;
-	}
+   public float getCurrentAlphaTest() {
+      return this.currentAlphaTest;
+   }
 
-	public int getCurrentRenderedBlockEntity() {
-		return currentRenderedBlockEntity;
-	}
+   public void setCurrentAlphaTest(float alphaTest) {
+      this.currentAlphaTest = alphaTest;
+   }
 
-	public void setCurrentEntity(int entity) {
-		this.currentRenderedEntity = entity;
-	}
+   public float getDarknessLightFactor() {
+      return this.darknessLightFactor;
+   }
 
-	public int getCurrentRenderedEntity() {
-		return currentRenderedEntity;
-	}
+   public void setDarknessLightFactor(float factor) {
+      this.darknessLightFactor = factor;
+   }
 
-	public int getCurrentRenderedItem() {
-		return currentRenderedItem;
-	}
+   public float getCloudTime() {
+      return this.cloudTime;
+   }
 
-	public void setCurrentRenderedItem(int item) {
-		this.currentRenderedItem = item;
-	}
+   public void setCloudTime(float cloudTime) {
+      this.cloudTime = cloudTime;
+   }
 
-	public float getCurrentAlphaTest() {
-		return currentAlphaTest;
-	}
+   public int getTextureReloadCount() {
+      return this.textureReloadCount;
+   }
 
-	public void setCurrentAlphaTest(float alphaTest) {
-		this.currentAlphaTest = alphaTest;
-	}
+   public void incrementTextureReloadCount() {
+      this.textureReloadCount++;
+   }
 
-	public float getDarknessLightFactor() {
-		return darknessLightFactor;
-	}
-
-	public void setDarknessLightFactor(float factor) {
-		darknessLightFactor = factor;
-	}
-
-	public float getCloudTime() {
-		return this.cloudTime;
-	}
-
-	public void setCloudTime(float cloudTime) {
-		this.cloudTime = cloudTime;
-	}
-
-	public int getTextureReloadCount() {
-		return textureReloadCount;
-	}
-
-	public void incrementTextureReloadCount() {
-		this.textureReloadCount++;
-	}
-
-	public void resetTextureReloadCount() {
-		this.textureReloadCount = 0;
-	}
+   public void resetTextureReloadCount() {
+      this.textureReloadCount = 0;
+   }
 }

@@ -1,46 +1,38 @@
 package net.irisshaders.iris.targets.backed;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
+import java.nio.ByteBuffer;
 import net.irisshaders.iris.gl.GLDebug;
 import net.irisshaders.iris.gl.GlResource;
 import net.irisshaders.iris.gl.IrisRenderSystem;
 import net.irisshaders.iris.gl.texture.TextureUploadHelper;
 import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL11C;
-import org.lwjgl.opengl.GL13C;
-import org.lwjgl.opengl.GL43C;
-
-import java.nio.ByteBuffer;
 
 public class SingleColorTexture extends GlResource {
-	public SingleColorTexture(int red, int green, int blue, int alpha) {
-		super(IrisRenderSystem.createTexture(GL11C.GL_TEXTURE_2D));
-		ByteBuffer pixel = BufferUtils.createByteBuffer(4);
-		pixel.put((byte) red);
-		pixel.put((byte) green);
-		pixel.put((byte) blue);
-		pixel.put((byte) alpha);
-		pixel.position(0);
+   public SingleColorTexture(int red, int green, int blue, int alpha) {
+      super(IrisRenderSystem.createTexture(3553));
+      ByteBuffer pixel = BufferUtils.createByteBuffer(4);
+      pixel.put((byte)red);
+      pixel.put((byte)green);
+      pixel.put((byte)blue);
+      pixel.put((byte)alpha);
+      pixel.position(0);
+      int texture = this.getGlId();
+      GLDebug.nameObject(5890, texture, "single color (" + red + ", " + green + "," + blue + "," + alpha + ")");
+      IrisRenderSystem.texParameteri(texture, 3553, 10241, 9729);
+      IrisRenderSystem.texParameteri(texture, 3553, 10240, 9729);
+      IrisRenderSystem.texParameteri(texture, 3553, 10242, 10497);
+      IrisRenderSystem.texParameteri(texture, 3553, 10243, 10497);
+      TextureUploadHelper.resetTextureUploadState();
+      IrisRenderSystem.texImage2D(texture, 3553, 0, 32856, 1, 1, 0, 6408, 5121, pixel);
+   }
 
-		int texture = getGlId();
+   public int getTextureId() {
+      return this.getGlId();
+   }
 
-		GLDebug.nameObject(GL43C.GL_TEXTURE, texture, "single color (" + red + ", " + green + "," + blue + "," + alpha + ")");
-
-		IrisRenderSystem.texParameteri(texture, GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MIN_FILTER, GL11C.GL_LINEAR);
-		IrisRenderSystem.texParameteri(texture, GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MAG_FILTER, GL11C.GL_LINEAR);
-		IrisRenderSystem.texParameteri(texture, GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_WRAP_S, GL13C.GL_REPEAT);
-		IrisRenderSystem.texParameteri(texture, GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_WRAP_T, GL13C.GL_REPEAT);
-
-		TextureUploadHelper.resetTextureUploadState();
-		IrisRenderSystem.texImage2D(texture, GL11C.GL_TEXTURE_2D, 0, GL11C.GL_RGBA8, 1, 1, 0, GL11C.GL_RGBA, GL11C.GL_UNSIGNED_BYTE, pixel);
-	}
-
-	public int getTextureId() {
-		return getGlId();
-	}
-
-	@Override
-	protected void destroyInternal() {
-		GlStateManager._deleteTexture(getGlId());
-	}
+   @Override
+   protected void destroyInternal() {
+      GlStateManager._deleteTexture(this.getGlId());
+   }
 }

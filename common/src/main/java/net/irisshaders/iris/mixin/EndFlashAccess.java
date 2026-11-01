@@ -6,9 +6,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(EndFlashState.class)
 public interface EndFlashAccess {
-	@Accessor("yAngle")
-	void setYAngle(float yAngle);
+   @Accessor("yAngle")
+   void setYAngle(float var1);
 
-	@Accessor("xAngle")
-	void setXAngle(float xAngle);
+   @Accessor("xAngle")
+   void setXAngle(float var1);
 }

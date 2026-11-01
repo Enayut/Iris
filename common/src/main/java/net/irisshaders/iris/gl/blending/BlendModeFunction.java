@@ -1,39 +1,37 @@
 package net.irisshaders.iris.gl.blending;
 
-import net.irisshaders.iris.Iris;
-import org.lwjgl.opengl.GL11;
-
 import java.util.Optional;
+import net.irisshaders.iris.Iris;
 
 public enum BlendModeFunction {
-	ZERO(GL11.GL_ZERO),
-	ONE(GL11.GL_ONE),
-	SRC_COLOR(GL11.GL_SRC_COLOR),
-	ONE_MINUS_SRC_COLOR(GL11.GL_ONE_MINUS_SRC_COLOR),
-	DST_COLOR(GL11.GL_DST_COLOR),
-	ONE_MINUS_DST_COLOR(GL11.GL_ONE_MINUS_DST_COLOR),
-	SRC_ALPHA(GL11.GL_SRC_ALPHA),
-	ONE_MINUS_SRC_ALPHA(GL11.GL_ONE_MINUS_SRC_ALPHA),
-	DST_ALPHA(GL11.GL_DST_ALPHA),
-	ONE_MINUS_DST_ALPHA(GL11.GL_ONE_MINUS_DST_ALPHA),
-	SRC_ALPHA_SATURATE(GL11.GL_SRC_ALPHA_SATURATE);
+   ZERO(0),
+   ONE(1),
+   SRC_COLOR(768),
+   ONE_MINUS_SRC_COLOR(769),
+   DST_COLOR(774),
+   ONE_MINUS_DST_COLOR(775),
+   SRC_ALPHA(770),
+   ONE_MINUS_SRC_ALPHA(771),
+   DST_ALPHA(772),
+   ONE_MINUS_DST_ALPHA(773),
+   SRC_ALPHA_SATURATE(776);
 
-	private final int glId;
+   private final int glId;
 
-	BlendModeFunction(int glFormat) {
-		this.glId = glFormat;
-	}
+   BlendModeFunction(int glFormat) {
+      this.glId = glFormat;
+   }
 
-	public static Optional<BlendModeFunction> fromString(String name) {
-		try {
-			return Optional.of(BlendModeFunction.valueOf(name));
-		} catch (IllegalArgumentException e) {
-			Iris.logger.warn("Invalid blend mode! " + name);
-			return Optional.empty();
-		}
-	}
+   public static Optional<BlendModeFunction> fromString(String name) {
+      try {
+         return Optional.of(valueOf(name));
+      } catch (IllegalArgumentException e) {
+         Iris.logger.warn("Invalid blend mode! " + name);
+         return Optional.empty();
+      }
+   }
 
-	public int getGlId() {
-		return glId;
-	}
+   public int getGlId() {
+      return this.glId;
+   }
 }

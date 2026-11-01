@@ -7,11 +7,11 @@ import org.spongepowered.asm.mixin.Shadow;
 
 @Mixin(ByteBufferBuilder.class)
 public class MixinByteBufferBuilder implements MojangBufferAccessor {
-	@Shadow
-	long pointer;
+   @Shadow
+   long pointer;
 
-	@Override
-	public long getPointer() {
-		return this.pointer;
-	}
+   @Override
+   public long getPointer() {
+      return this.pointer;
+   }
 }

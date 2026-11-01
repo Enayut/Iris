@@ -1,40 +1,35 @@
 package net.irisshaders.iris.platform;
 
-import com.mojang.blaze3d.textures.TextureFormat;
-import net.irisshaders.iris.gl.texture.DepthBufferFormat;
+import java.nio.file.Path;
+import java.util.ServiceLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.nio.file.Path;
-import java.util.ServiceLoader;
-
 public interface IrisPlatformHelpers {
-	IrisPlatformHelpers INSTANCE = ServiceLoader.load(IrisPlatformHelpers.class).findFirst().get();
+   IrisPlatformHelpers INSTANCE = ServiceLoader.load(IrisPlatformHelpers.class).findFirst().get();
 
-	static IrisPlatformHelpers getInstance() {
-		return INSTANCE;
-	}
+   static IrisPlatformHelpers getInstance() {
+      return INSTANCE;
+   }
 
-	boolean isModLoaded(String modId);
+   boolean isModLoaded(String var1);
 
-	String getVersion();
+   String getVersion();
 
-	boolean isDevelopmentEnvironment();
+   boolean isDevelopmentEnvironment();
 
-	Path getGameDir();
+   Path getGameDir();
 
-	Path getConfigDir();
+   Path getConfigDir();
 
-	int compareVersions(String currentVersion, String semanticVersion) throws Exception;
+   int compareVersions(String var1, String var2) throws Exception;
 
-	KeyMapping registerKeyBinding(KeyMapping keyMapping);
+   KeyMapping registerKeyBinding(KeyMapping var1);
 
-	boolean useELS();
+   boolean useELS();
 
-    BlockState getBlockAppearance(BlockAndTintGetter level, BlockState state, Direction cullFace, BlockPos pos);
-
-    TextureFormat mojangDepthFormat(DepthBufferFormat depthFormat);
+   BlockState getBlockAppearance(BlockAndTintGetter var1, BlockState var2, Direction var3, BlockPos var4);
 }

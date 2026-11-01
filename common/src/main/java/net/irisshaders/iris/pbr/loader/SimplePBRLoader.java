@@ -7,53 +7,46 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.ReloadableTexture;
 import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.client.renderer.texture.TextureContents;
-import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-
 public class SimplePBRLoader implements PBRTextureLoader<SimpleTexture> {
-	@Override
-	public void load(SimpleTexture texture, ResourceManager resourceManager, PBRTextureConsumer pbrTextureConsumer) {
-		Identifier location = ((ReloadableTextureAccessor) texture).getLocation();
+   public void load(SimpleTexture texture, ResourceManager resourceManager, PBRTextureLoader.PBRTextureConsumer pbrTextureConsumer) {
+      Identifier location = ((ReloadableTextureAccessor)texture).getLocation();
+      AbstractTexture normalTexture = this.createPBRTexture(location, resourceManager, PBRType.NORMAL);
+      AbstractTexture specularTexture = this.createPBRTexture(location, resourceManager, PBRType.SPECULAR);
+      if (normalTexture != null) {
+         pbrTextureConsumer.acceptNormalTexture(normalTexture);
+      }
 
-		AbstractTexture normalTexture = createPBRTexture(location, resourceManager, PBRType.NORMAL);
-		AbstractTexture specularTexture = createPBRTexture(location, resourceManager, PBRType.SPECULAR);
+      if (specularTexture != null) {
+         pbrTextureConsumer.acceptSpecularTexture(specularTexture);
+      }
+   }
 
-		if (normalTexture != null) {
-			pbrTextureConsumer.acceptNormalTexture(normalTexture);
-		}
-		if (specularTexture != null) {
-			pbrTextureConsumer.acceptSpecularTexture(specularTexture);
-		}
-	}
+   @Nullable
+   protected AbstractTexture createPBRTexture(Identifier imageLocation, ResourceManager resourceManager, PBRType pbrType) {
+      Identifier pbrImageLocation = imageLocation.withPath(pbrType::appendSuffix);
+      ImmediateState.temporarilyIgnorePass = true;
+      SimpleTexture pbrTexture = new SimpleTexture(pbrImageLocation);
+      TextureContents contents = this.loadContentsSafe(pbrTexture, resourceManager);
+      if (contents == null) {
+         pbrTexture.close();
+         ImmediateState.temporarilyIgnorePass = false;
+         return null;
+      } else {
+         pbrTexture.apply(contents);
+         ImmediateState.temporarilyIgnorePass = false;
+         return pbrTexture;
+      }
+   }
 
-	@Nullable
-	protected AbstractTexture createPBRTexture(Identifier imageLocation, ResourceManager resourceManager, PBRType pbrType) {
-		Identifier pbrImageLocation = imageLocation.withPath(pbrType::appendSuffix);
-
-		ImmediateState.temporarilyIgnorePass = true;
-		SimpleTexture pbrTexture = new SimpleTexture(pbrImageLocation);
-		TextureContents contents = loadContentsSafe(pbrTexture, resourceManager);
-
-		if (contents == null) {
-			pbrTexture.close();
-			ImmediateState.temporarilyIgnorePass = false;
-			return null;
-		}
-		pbrTexture.apply(contents);
-		ImmediateState.temporarilyIgnorePass = false;
-
-		return pbrTexture;
-	}
-
-	private TextureContents loadContentsSafe(ReloadableTexture texture, ResourceManager manager) {
-		try {
-			return texture.loadContents(manager);
-		} catch (Exception var4) {
-			return null;
-		}
-	}
+   private TextureContents loadContentsSafe(ReloadableTexture texture, ResourceManager manager) {
+      try {
+         return texture.loadContents(manager);
+      } catch (Exception var4) {
+         return null;
+      }
+   }
 }

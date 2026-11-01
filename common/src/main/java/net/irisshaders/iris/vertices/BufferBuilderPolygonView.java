@@ -4,36 +4,40 @@ import net.irisshaders.iris.vertices.views.QuadView;
 import org.lwjgl.system.MemoryUtil;
 
 public class BufferBuilderPolygonView implements QuadView {
-	private long[] writeOffsets;
-	private long pointer;
+   private long[] writeOffsets;
+   private long pointer;
+   private int positionOffset;
+   private int uvOffset;
 
-	public void setup(long pointer, long[] writeOffsets, int stride, int vertexAmount) {
-		this.pointer = pointer;
-		this.writeOffsets = writeOffsets;
-	}
+   public void setup(long pointer, long[] writeOffsets, int positionOffset, int uvOffset) {
+      this.pointer = pointer;
+      this.writeOffsets = writeOffsets;
+      this.positionOffset = positionOffset;
+      this.uvOffset = uvOffset;
+   }
 
-	@Override
-	public float x(int index) {
-		return MemoryAccess.getFloat(pointer + writeOffsets[index]);
-	}
+   @Override
+   public float x(int index) {
+      return MemoryUtil.memGetFloat(this.pointer + this.writeOffsets[index] + this.positionOffset);
+   }
 
-	@Override
-	public float y(int index) {
-		return MemoryAccess.getFloat(pointer + writeOffsets[index] + 4);
-	}
+   @Override
+   public float y(int index) {
+      return MemoryUtil.memGetFloat(this.pointer + this.writeOffsets[index] + this.positionOffset + 4L);
+   }
 
-	@Override
-	public float z(int index) {
-		return MemoryAccess.getFloat(pointer + writeOffsets[index] + 8);
-	}
+   @Override
+   public float z(int index) {
+      return MemoryUtil.memGetFloat(this.pointer + this.writeOffsets[index] + this.positionOffset + 8L);
+   }
 
-	@Override
-	public float u(int index) {
-		return MemoryAccess.getFloat(pointer + writeOffsets[index] + 16);
-	}
+   @Override
+   public float u(int index) {
+      return MemoryUtil.memGetFloat(this.pointer + this.writeOffsets[index] + this.uvOffset);
+   }
 
-	@Override
-	public float v(int index) {
-		return MemoryAccess.getFloat(pointer + writeOffsets[index] + 20);
-	}
+   @Override
+   public float v(int index) {
+      return MemoryUtil.memGetFloat(this.pointer + this.writeOffsets[index] + this.uvOffset + 4L);
+   }
 }

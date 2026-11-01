@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Biomes.class)
 public class MixinBiomes {
-	@Unique
-	private static int currentId = 0;
+   @Unique
+   private static int currentId = 0;
 
-	@Inject(method = "register", at = @At("TAIL"))
-	private static void iris$registerBiome(String string, CallbackInfoReturnable<ResourceKey<Biome>> cir) {
-		BiomeUniforms.getBiomeMap().put(cir.getReturnValue(), currentId++);
-	}
+   @Inject(method = "register", at = @At("TAIL"))
+   private static void iris$registerBiome(String string, CallbackInfoReturnable<ResourceKey<Biome>> cir) {
+      BiomeUniforms.getBiomeMap().put((ResourceKey)cir.getReturnValue(), currentId++);
+   }
 }

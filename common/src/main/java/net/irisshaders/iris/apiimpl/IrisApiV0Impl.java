@@ -1,6 +1,8 @@
 package net.irisshaders.iris.apiimpl;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.api.v0.IrisApi;
 import net.irisshaders.iris.api.v0.IrisApiConfig;
@@ -19,82 +21,69 @@ import net.irisshaders.iris.shadows.ShadowRenderingState;
 import net.irisshaders.iris.vertices.IrisTextVertexSinkImpl;
 import net.minecraft.client.gui.screens.Screen;
 
-import java.nio.ByteBuffer;
-import java.util.function.IntFunction;
-
 public class IrisApiV0Impl implements IrisApi {
-	public static final IrisApiV0Impl INSTANCE = new IrisApiV0Impl();
-	private static final IrisApiV0ConfigImpl CONFIG = new IrisApiV0ConfigImpl();
+   public static final IrisApiV0Impl INSTANCE = new IrisApiV0Impl();
+   private static final IrisApiV0ConfigImpl CONFIG = new IrisApiV0ConfigImpl();
 
-	@Override
-	public int getMinorApiRevision() {
-		return 4;
-	}
+   @Override
+   public int getMinorApiRevision() {
+      return 4;
+   }
 
-	@Override
-	public boolean isShaderPackInUse() {
-		WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+   @Override
+   public boolean isShaderPackInUse() {
+      WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+      return pipeline == null ? false : !(pipeline instanceof VanillaRenderingPipeline);
+   }
 
-		if (pipeline == null) {
-			return false;
-		}
+   @Override
+   public boolean isRenderingShadowPass() {
+      return ShadowRenderingState.areShadowsCurrentlyBeingRendered();
+   }
 
-		return !(pipeline instanceof VanillaRenderingPipeline);
-	}
+   @Override
+   public Object openMainIrisScreenObj(Object parent) {
+      return new ShaderPackScreen((Screen)parent);
+   }
 
-	@Override
-	public boolean isRenderingShadowPass() {
-		return ShadowRenderingState.areShadowsCurrentlyBeingRendered();
-	}
+   @Override
+   public String getMainScreenLanguageKey() {
+      return "options.iris.shaderPackSelection";
+   }
 
-	@Override
-	public Object openMainIrisScreenObj(Object parent) {
-		return new ShaderPackScreen((Screen) parent);
-	}
+   @Override
+   public IrisApiConfig getConfig() {
+      return CONFIG;
+   }
 
-	@Override
-	public String getMainScreenLanguageKey() {
-		return "options.iris.shaderPackSelection";
-	}
+   @Override
+   public IrisTextVertexSink createTextVertexSink(int maxQuadCount, IntFunction<ByteBuffer> bufferProvider) {
+      return new IrisTextVertexSinkImpl(maxQuadCount, bufferProvider);
+   }
 
-	@Override
-	public IrisApiConfig getConfig() {
-		return CONFIG;
-	}
+   @Override
+   public float getSunPathRotation() {
+      WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+      return pipeline == null ? 0.0F : pipeline.getSunPathRotation();
+   }
 
-	@Override
-	public IrisTextVertexSink createTextVertexSink(int maxQuadCount, IntFunction<ByteBuffer> bufferProvider) {
-		return new IrisTextVertexSinkImpl(maxQuadCount, bufferProvider);
-	}
+   @Override
+   public void assignPipeline(RenderPipeline pipeline, IrisProgram program) {
+      IrisPipelines.assignPipeline(pipeline, ShaderKey.findBestMatch(pipeline, ProgramId.fromAPI(program)));
+   }
 
-	@Override
-	public float getSunPathRotation() {
-		WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+   @Override
+   public void assignPipelineShadow(RenderPipeline pipeline, IrisShadowProgram program) {
+      IrisPipelines.assignPipelineShadow(pipeline, ShaderKey.findBestMatch(pipeline, ProgramId.fromAPI(program)));
+   }
 
-		if (pipeline == null) {
-			return 0;
-		}
+   @Override
+   public void registerShadowRenderCallback(IrisShadowRenderCallback callback) {
+      ShadowRenderCallbacks.register(callback);
+   }
 
-		return pipeline.getSunPathRotation();
-	}
-
-	@Override
-	public void assignPipeline(RenderPipeline pipeline, IrisProgram program) {
-		IrisPipelines.assignPipeline(pipeline, ShaderKey.findBestMatch(pipeline, ProgramId.fromAPI(program)));
-	}
-
-	@Override
-	public void assignPipelineShadow(RenderPipeline pipeline, IrisShadowProgram program) {
-		IrisPipelines.assignPipelineShadow(pipeline, ShaderKey.findBestMatch(pipeline, ProgramId.fromAPI(program)));
-	}
-
-	@Override
-	public void registerShadowRenderCallback(IrisShadowRenderCallback callback) {
-		ShadowRenderCallbacks.register(callback);
-	}
-
-	@Override
-	public boolean isReverseZDuringShaders() {
-		return false;
-	}
+   @Override
+   public boolean isReverseZDuringShaders() {
+      return !ShadowRenderingState.areShadowsCurrentlyBeingRendered();
+   }
 }

@@ -1,25 +1,23 @@
 package net.irisshaders.iris.pbr.format;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.HashMap;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class TextureFormatRegistry {
-	public static final TextureFormatRegistry INSTANCE = new TextureFormatRegistry();
+   public static final TextureFormatRegistry INSTANCE = new TextureFormatRegistry();
+   private final Map<String, TextureFormat.Factory> factoryMap = new HashMap<>();
 
-	static {
-		INSTANCE.register("lab-pbr", LabPBRTextureFormat::new);
-	}
+   public void register(String name, TextureFormat.Factory factory) {
+      this.factoryMap.put(name, factory);
+   }
 
-	private final Map<String, TextureFormat.Factory> factoryMap = new HashMap<>();
+   @Nullable
+   public TextureFormat.Factory getFactory(String name) {
+      return this.factoryMap.get(name);
+   }
 
-	public void register(String name, TextureFormat.Factory factory) {
-		factoryMap.put(name, factory);
-	}
-
-	@Nullable
-	public TextureFormat.Factory getFactory(String name) {
-		return factoryMap.get(name);
-	}
+   static {
+      INSTANCE.register("lab-pbr", LabPBRTextureFormat::new);
+   }
 }

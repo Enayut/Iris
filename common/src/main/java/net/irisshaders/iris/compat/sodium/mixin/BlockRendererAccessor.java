@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(BlockRenderer.class)
 public interface BlockRendererAccessor {
-	@Accessor
-	ChunkBuildBuffers getBuffers();
+   @Accessor
+   ChunkBuildBuffers getBuffers();
 }

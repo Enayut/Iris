@@ -11,28 +11,29 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(AdvancedShadowCullingFrustum.class)
 public class MixinAdvancedShadowCullingFrustum extends Frustum implements IDhApiShadowCullingFrustum {
-	@Unique
-	private int worldMinYDH;
-	@Unique
-	private int worldMaxYDH;
+   @Unique
+   private int worldMinYDH;
+   @Unique
+   private int worldMaxYDH;
 
-	public MixinAdvancedShadowCullingFrustum(Matrix4f matrix4f, Matrix4f matrix4f2) {
-		super(matrix4f, matrix4f2);
-	}
+   public MixinAdvancedShadowCullingFrustum(Matrix4f matrix4f, Matrix4f matrix4f2) {
+      super(matrix4f, matrix4f2);
+   }
 
-	@Shadow(remap = false)
-	protected int isVisible(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-		throw new IllegalStateException();
-	}
+   @Shadow(remap = false)
+   protected int isVisible(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+      throw new IllegalStateException();
+   }
 
-	@Override
-	public void update(int worldMinBlockY, int worldMaxBlockY, DhApiMat4f worldViewProjection) {
-		this.worldMinYDH = worldMinBlockY;
-		this.worldMaxYDH = worldMaxBlockY;
-	}
+   public void update(int worldMinBlockY, int worldMaxBlockY, DhApiMat4f worldViewProjection) {
+      this.worldMinYDH = worldMinBlockY;
+      this.worldMaxYDH = worldMaxBlockY;
+   }
 
-	@Override
-	public boolean intersects(int lodBlockPosMinX, int lodBlockPosMinZ, int lodBlockWidth, int lodDetailLevel) {
-		return this.isVisible(lodBlockPosMinX, this.worldMinYDH, lodBlockPosMinZ, lodBlockPosMinX + lodBlockWidth, this.worldMaxYDH, lodBlockPosMinZ + lodBlockWidth) != 0;
-	}
+   public boolean intersects(int lodBlockPosMinX, int lodBlockPosMinZ, int lodBlockWidth, int lodDetailLevel) {
+      return this.isVisible(
+            lodBlockPosMinX, this.worldMinYDH, lodBlockPosMinZ, lodBlockPosMinX + lodBlockWidth, this.worldMaxYDH, lodBlockPosMinZ + lodBlockWidth
+         )
+         != 0;
+   }
 }

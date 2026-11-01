@@ -1,46 +1,40 @@
 package net.irisshaders.iris.vertices.sodium.terrain;
 
-import net.caffeinemc.mods.sodium.client.gl.attribute.GlVertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import net.caffeinemc.mods.sodium.client.render.chunk.vertex.format.ChunkVertexEncoder;
 import net.caffeinemc.mods.sodium.client.render.chunk.vertex.format.ChunkVertexType;
 
-/**
- * Like HFPModelVertexType, but extended to support Iris. The extensions aren't particularly efficient right now.
- */
 public class XHFPModelVertexType implements ChunkVertexType {
-	private static final int POSITION_MAX_VALUE = 65536;
-	private static final int TEXTURE_MAX_VALUE = 32768;
-	private static final float MODEL_ORIGIN = 8.0f;
-	private static final float MODEL_RANGE = 32.0f;
-	private static final float MODEL_SCALE = MODEL_RANGE / POSITION_MAX_VALUE;
-	private static final float MODEL_SCALE_INV = POSITION_MAX_VALUE / MODEL_RANGE;
-	private static final float TEXTURE_SCALE = (1.0f / TEXTURE_MAX_VALUE);
-	private final GlVertexFormat format;
-	private final int normalOffset;
-	private final int blockIdOffset;
-	private final int midBlockOffset;
-	private final int midUvOffset;
+   private static final int POSITION_MAX_VALUE = 65536;
+   private static final int TEXTURE_MAX_VALUE = 32768;
+   private static final float MODEL_ORIGIN = 8.0F;
+   private static final float MODEL_RANGE = 32.0F;
+   private static final float MODEL_SCALE = 4.8828125E-4F;
+   private static final float MODEL_SCALE_INV = 2048.0F;
+   private static final float TEXTURE_SCALE = 3.0517578E-5F;
+   private final VertexFormat format;
+   private final int normalOffset;
+   private final int blockIdOffset;
+   private final int midBlockOffset;
+   private final int midUvOffset;
 
-	public XHFPModelVertexType(GlVertexFormat format, int blockIdOffset, int normalOffset, int midUvOffset, int midBlockOffset) {
-		this.format = format;
-		this.blockIdOffset = blockIdOffset;
-		this.normalOffset = normalOffset;
-		this.midUvOffset = midUvOffset;
-		this.midBlockOffset = midBlockOffset;
-	}
+   public XHFPModelVertexType(VertexFormat format, int blockIdOffset, int normalOffset, int midUvOffset, int midBlockOffset) {
+      this.format = format;
+      this.blockIdOffset = blockIdOffset;
+      this.normalOffset = normalOffset;
+      this.midUvOffset = midUvOffset;
+      this.midBlockOffset = midBlockOffset;
+   }
 
-	public static int encodeOld(float u, float v) {
-		return ((Math.round(u * TEXTURE_MAX_VALUE) & 0xFFFF) << 0) |
-			((Math.round(v * TEXTURE_MAX_VALUE) & 0xFFFF) << 16);
-	}
+   public static int encodeOld(float u, float v) {
+      return (Math.round(u * 32768.0F) & 65535) << 0 | (Math.round(v * 32768.0F) & 65535) << 16;
+   }
 
-	@Override
-	public GlVertexFormat getVertexFormat() {
-		return format;
-	}
+   public VertexFormat getVertexFormat() {
+      return this.format;
+   }
 
-	@Override
-	public ChunkVertexEncoder getEncoder() {
-		return new XHFPTerrainVertex(blockIdOffset, normalOffset, midUvOffset, midBlockOffset, format.getStride());
-	}
+   public ChunkVertexEncoder getEncoder() {
+      return new XHFPTerrainVertex(this.blockIdOffset, this.normalOffset, this.midUvOffset, this.midBlockOffset, this.format.getVertexSize());
+   }
 }

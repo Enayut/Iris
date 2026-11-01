@@ -2,6 +2,7 @@ package net.irisshaders.iris.pipeline.transform.transformer;
 
 import io.github.douira.glsl_transformer.ast.node.Identifier;
 import io.github.douira.glsl_transformer.ast.node.TranslationUnit;
+import io.github.douira.glsl_transformer.ast.node.abstract_node.ASTNode;
 import io.github.douira.glsl_transformer.ast.node.declaration.DeclarationMember;
 import io.github.douira.glsl_transformer.ast.node.declaration.TypeAndInitDeclaration;
 import io.github.douira.glsl_transformer.ast.node.expression.LiteralExpression;
@@ -10,9 +11,9 @@ import io.github.douira.glsl_transformer.ast.node.external_declaration.ExternalD
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.LayoutQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.NamedLayoutQualifierPart;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier;
-import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier.StorageType;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.TypeQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.TypeQualifierPart;
+import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier.StorageType;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinNumericTypeSpecifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.TypeSpecifier;
 import io.github.douira.glsl_transformer.ast.query.Root;
@@ -24,6 +25,11 @@ import io.github.douira.glsl_transformer.parser.ParseShape;
 import io.github.douira.glsl_transformer.util.Type;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.gl.shader.ShaderType;
 import net.irisshaders.iris.pipeline.transform.PatchShaderType;
@@ -31,353 +37,292 @@ import net.irisshaders.iris.pipeline.transform.parameter.Parameters;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
-
 public class LayoutTransformer {
-	private static final Logger LOGGER = LogManager.getLogger(LayoutTransformer.class);
+   private static final Logger LOGGER = LogManager.getLogger(LayoutTransformer.class);
+   private static final ShaderType[] pipeline = new ShaderType[]{
+      ShaderType.VERTEX, ShaderType.TESSELATION_CONTROL, ShaderType.TESSELATION_EVAL, ShaderType.GEOMETRY, ShaderType.FRAGMENT
+   };
+   private static final Matcher<ExternalDeclaration> outDeclarationMatcher = new LayoutTransformer.DeclarationMatcher(StorageType.OUT);
+   private static final Matcher<ExternalDeclaration> inDeclarationMatcher = new LayoutTransformer.DeclarationMatcher(StorageType.IN);
+   private static final Matcher<ExternalDeclaration> nonLayoutOutDeclarationMatcher = new Matcher<ExternalDeclaration>(
+      "out float name;", ParseShape.EXTERNAL_DECLARATION
+   ) {
+      {
+         this.markClassWildcard("qualifier", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(TypeQualifier.class));
+         this.markClassWildcard("type", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
+         this.markClassWildcard(
+            "name*", ((Identifier)((ExternalDeclaration)this.pattern).getRoot().identifierIndex.getUnique("name")).getAncestor(DeclarationMember.class)
+         );
+      }
 
-	private static final ShaderType[] pipeline = {ShaderType.VERTEX, ShaderType.TESSELATION_CONTROL, ShaderType.TESSELATION_EVAL, ShaderType.GEOMETRY, ShaderType.FRAGMENT};
-	private static final Matcher<ExternalDeclaration> outDeclarationMatcher = new DeclarationMatcher(
-		StorageType.OUT);
-	private static final Matcher<ExternalDeclaration> inDeclarationMatcher = new DeclarationMatcher(
-		StorageType.IN);
-	private static final Matcher<ExternalDeclaration> nonLayoutOutDeclarationMatcher = new Matcher<>(
-		"out float name;",
-		ParseShape.EXTERNAL_DECLARATION) {
-		{
-			markClassWildcard("qualifier", pattern.getRoot().nodeIndex.getUnique(TypeQualifier.class));
-			markClassWildcard("type", pattern.getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
-			markClassWildcard("name*",
-				pattern.getRoot().identifierIndex.getUnique("name").getAncestor(DeclarationMember.class));
-		}
+      public boolean matchesExtract(ExternalDeclaration tree) {
+         boolean result = super.matchesExtract(tree);
+         if (!result) {
+            return false;
+         }
 
-		@Override
-		public boolean matchesExtract(ExternalDeclaration tree) {
-			boolean result = super.matchesExtract(tree);
-			if (!result) {
-				return false;
-			}
+         TypeQualifier qualifier = (TypeQualifier)this.getNodeMatch("qualifier", TypeQualifier.class);
+         boolean hasOutQualifier = false;
 
-			// look for an out qualifier but no layout qualifier
-			TypeQualifier qualifier = getNodeMatch("qualifier", TypeQualifier.class);
-			var hasOutQualifier = false;
-			for (TypeQualifierPart part : qualifier.getParts()) {
-				if (part instanceof StorageQualifier storageQualifier) {
-					if (storageQualifier.storageType == StorageType.OUT) {
-						hasOutQualifier = true;
-					}
-				} else if (part instanceof LayoutQualifier) {
-					return false;
-				}
-			}
-			return hasOutQualifier;
-		}
-	};
-	private static final Matcher<ExternalDeclaration> nonLayoutInDeclarationMatcher = new Matcher<>(
-		"in float name;",
-		ParseShape.EXTERNAL_DECLARATION) {
-		{
-			markClassWildcard("qualifier", pattern.getRoot().nodeIndex.getUnique(TypeQualifier.class));
-			markClassWildcard("type", pattern.getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
-			markClassWildcard("name*",
-				pattern.getRoot().identifierIndex.getUnique("name").getAncestor(DeclarationMember.class));
-		}
+         for (TypeQualifierPart part : qualifier.getParts()) {
+            if (part instanceof StorageQualifier storageQualifier) {
+               if (storageQualifier.storageType == StorageType.OUT) {
+                  hasOutQualifier = true;
+               }
+            } else if (part instanceof LayoutQualifier) {
+               return false;
+            }
+         }
 
-		@Override
-		public boolean matchesExtract(ExternalDeclaration tree) {
-			boolean result = super.matchesExtract(tree);
-			if (!result) {
-				return false;
-			}
+         return hasOutQualifier;
+      }
+   };
+   private static final Matcher<ExternalDeclaration> nonLayoutInDeclarationMatcher = new Matcher<ExternalDeclaration>(
+      "in float name;", ParseShape.EXTERNAL_DECLARATION
+   ) {
+      {
+         this.markClassWildcard("qualifier", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(TypeQualifier.class));
+         this.markClassWildcard("type", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
+         this.markClassWildcard(
+            "name*", ((Identifier)((ExternalDeclaration)this.pattern).getRoot().identifierIndex.getUnique("name")).getAncestor(DeclarationMember.class)
+         );
+      }
 
-			// look for an out qualifier but no layout qualifier
-			TypeQualifier qualifier = getNodeMatch("qualifier", TypeQualifier.class);
-			var hasOutQualifier = false;
-			for (TypeQualifierPart part : qualifier.getParts()) {
-				if (part instanceof StorageQualifier storageQualifier) {
-					if (storageQualifier.storageType == StorageType.IN) {
-						hasOutQualifier = true;
-					}
-				} else if (part instanceof LayoutQualifier) {
-					return false;
-				}
-			}
-			return hasOutQualifier;
-		}
-	};
-	private static final Template<ExternalDeclaration> layoutedOutDeclarationTemplate = Template
-		.withExternalDeclaration("out __type __name;");
-	private static final Template<ExternalDeclaration> layoutedInDeclarationTemplate = Template
-		.withExternalDeclaration("in __type __name;");
-	private static final String attachTargetPrefix = "outColor";
-	private static final List<String> reservedWords = List.of("texture");
+      public boolean matchesExtract(ExternalDeclaration tree) {
+         boolean result = super.matchesExtract(tree);
+         if (!result) {
+            return false;
+         }
 
-	static {
-		layoutedOutDeclarationTemplate.markLocalReplacement(
-			layoutedOutDeclarationTemplate.getSourceRoot().nodeIndex.getOne(TypeQualifier.class));
-		layoutedOutDeclarationTemplate.markLocalReplacement("__type", TypeSpecifier.class);
-		layoutedOutDeclarationTemplate.markLocalReplacement("__name", DeclarationMember.class);
-		layoutedInDeclarationTemplate.markLocalReplacement(
-			layoutedInDeclarationTemplate.getSourceRoot().nodeIndex.getOne(TypeQualifier.class));
-		layoutedInDeclarationTemplate.markLocalReplacement("__type", TypeSpecifier.class);
-		layoutedInDeclarationTemplate.markLocalReplacement("__name", DeclarationMember.class);
-	}
+         TypeQualifier qualifier = (TypeQualifier)this.getNodeMatch("qualifier", TypeQualifier.class);
+         boolean hasOutQualifier = false;
 
-	private static StorageQualifier getConstQualifier(TypeQualifier qualifier) {
-		if (qualifier == null) {
-			return null;
-		}
-		for (TypeQualifierPart constQualifier : qualifier.getChildren()) {
-			if (constQualifier instanceof StorageQualifier storageQualifier) {
-				if (storageQualifier.storageType == StorageType.CONST) {
-					return storageQualifier;
-				}
-			}
-		}
-		return null;
-	}
+         for (TypeQualifierPart part : qualifier.getParts()) {
+            if (part instanceof StorageQualifier storageQualifier) {
+               if (storageQualifier.storageType == StorageType.IN) {
+                  hasOutQualifier = true;
+               }
+            } else if (part instanceof LayoutQualifier) {
+               return false;
+            }
+         }
 
-	private static TypeQualifier makeQualifierOut(TypeQualifier typeQualifier) {
-		for (TypeQualifierPart qualifierPart : typeQualifier.getParts()) {
-			if (qualifierPart instanceof StorageQualifier storageQualifier) {
-				if (storageQualifier.storageType == StorageType.IN) {
-					storageQualifier.storageType = StorageType.OUT;
-				}
-			}
-		}
-		return typeQualifier;
-	}
+         return hasOutQualifier;
+      }
+   };
+   private static final Template<ExternalDeclaration> layoutedOutDeclarationTemplate = Template.withExternalDeclaration("out __type __name;");
+   private static final Template<ExternalDeclaration> layoutedInDeclarationTemplate = Template.withExternalDeclaration("in __type __name;");
+   private static final String attachTargetPrefix = "outColor";
+   private static final List<String> reservedWords = List.of("texture");
 
-	// does transformations that require cross-shader type data
-	public static void transformGrouped(
-		ASTParser t,
-		Map<PatchShaderType, TranslationUnit> trees,
-		Parameters parameters) {
-		/*
-		  find attributes that are declared as "in" in geometry or fragment but not
-		  declared as "out" in the previous stage. The missing "out" declarations for
-		  these attributes are added and initialized.
+   private static StorageQualifier getConstQualifier(TypeQualifier qualifier) {
+      if (qualifier == null) {
+         return null;
+      }
 
-		  It doesn't bother with array specifiers because they are only legal in
-		  geometry shaders, but then also only as an in declaration. The out
-		  declaration in the vertex shader is still just a single value. Missing out
-		  declarations in the geometry shader are also just normal.
+      for (TypeQualifierPart constQualifier : qualifier.getChildren()) {
+         if (constQualifier instanceof StorageQualifier storageQualifier && storageQualifier.storageType == StorageType.CONST) {
+            return storageQualifier;
+         }
+      }
 
-		  TODO:
-		  - fix issues where Iris' own declarations are detected and patched like
-		  iris_FogFragCoord if there are geometry shaders present
-		  - improved geometry shader support? They use funky declarations
-		 */
-		ShaderType prevType = null;
-		final AtomicReference<Object2IntMap<String>> lastMap = new AtomicReference<>();
-		for (ShaderType type : pipeline) {
-			PatchShaderType[] patchTypes = PatchShaderType.fromGlShaderType(type);
+      return null;
+   }
 
-			// check if the patch types have sources and continue if not
-			boolean hasAny = false;
-			for (PatchShaderType currentType : patchTypes) {
-				if (trees.get(currentType) != null) {
-					hasAny = true;
-				}
-			}
+   private static TypeQualifier makeQualifierOut(TypeQualifier typeQualifier) {
+      for (TypeQualifierPart qualifierPart : typeQualifier.getParts()) {
+         if (qualifierPart instanceof StorageQualifier storageQualifier && storageQualifier.storageType == StorageType.IN) {
+            storageQualifier.storageType = StorageType.OUT;
+         }
+      }
 
-			if (!hasAny) {
-				continue;
-			}
+      return typeQualifier;
+   }
 
+   public static void transformGrouped(ASTParser t, Map<PatchShaderType, TranslationUnit> trees, Parameters parameters) {
+      ShaderType prevType = null;
+      AtomicReference<Object2IntMap<String>> lastMap = new AtomicReference<>();
 
-			TranslationUnit currentTree = trees.get(patchTypes[0]);
-			if (currentTree == null) {
-				continue;
-			}
-			Root currentRoot = currentTree.getRoot();
+      for (ShaderType type : pipeline) {
+         PatchShaderType[] patchTypes = PatchShaderType.fromGlShaderType(type);
+         boolean hasAny = false;
 
+         for (PatchShaderType currentType : patchTypes) {
+            if (trees.get(currentType) != null) {
+               hasAny = true;
+            }
+         }
 
-			currentRoot.indexBuildSession((root) -> {
-				if (root != null) {
-					if (lastMap.get() != null) {
-						transformIn(lastMap.get(), t, currentTree, root, parameters);
-					}
+         if (hasAny) {
+            TranslationUnit currentTree = trees.get(patchTypes[0]);
+            if (currentTree != null) {
+               Root currentRoot = currentTree.getRoot();
+               currentRoot.indexBuildSession(root -> {
+                  if (root != null) {
+                     if (lastMap.get() != null) {
+                        transformIn(lastMap.get(), t, currentTree, root, parameters);
+                     }
 
-					lastMap.set(transformOut(t, currentTree, root, parameters));
-				}
-			});
+                     lastMap.set(transformOut(t, currentTree, root, parameters));
+                  }
+               });
+            }
+         }
+      }
+   }
 
-		}
-	}
+   public static Object2IntMap<String> transformOut(ASTParser t, TranslationUnit tree, Root root, Parameters parameters) {
+      ArrayList<LayoutTransformer.NewDeclarationData> newDeclarationData = new ArrayList<>();
+      int location = 0;
+      Object2IntMap<String> map = new Object2IntArrayMap();
+      ArrayList<ExternalDeclaration> declarationsToRemove = new ArrayList<>();
 
-	public static Object2IntMap<String> transformOut(ASTParser t, TranslationUnit tree, Root root, Parameters parameters) {
-		// do layout attachment (attaches a location(layout = 4) to the out declaration
-		// outColor4 for example)
+      for (DeclarationExternalDeclaration declaration : root.nodeIndex.get(DeclarationExternalDeclaration.class)) {
+         if (nonLayoutOutDeclarationMatcher.matchesExtract(declaration)) {
+            List<DeclarationMember> members = ((TypeAndInitDeclaration)((DeclarationMember)nonLayoutOutDeclarationMatcher.getNodeMatch(
+                     "name*", DeclarationMember.class
+                  ))
+                  .getAncestor(TypeAndInitDeclaration.class))
+               .getMembers();
+            TypeQualifier typeQualifier = (TypeQualifier)nonLayoutOutDeclarationMatcher.getNodeMatch("qualifier", TypeQualifier.class);
+            BuiltinNumericTypeSpecifier typeSpecifier = (BuiltinNumericTypeSpecifier)nonLayoutOutDeclarationMatcher.getNodeMatch(
+               "type", BuiltinNumericTypeSpecifier.class
+            );
+            int addedDeclarations = 0;
 
-		// iterate the declarations
-		ArrayList<NewDeclarationData> newDeclarationData = new ArrayList<>();
-		int location = 0;
+            for (DeclarationMember member : members) {
+               String name = member.getName().getName();
+               map.put(name, location);
+               Iris.logger.warn("Found a declaration named " + name);
+               newDeclarationData.add(new LayoutTransformer.NewDeclarationData(typeQualifier, typeSpecifier, member, location++, name));
+               addedDeclarations++;
+            }
 
-		Object2IntMap<String> map = new Object2IntArrayMap<>();
-		ArrayList<ExternalDeclaration> declarationsToRemove = new ArrayList<>();
-		for (DeclarationExternalDeclaration declaration : root.nodeIndex.get(DeclarationExternalDeclaration.class)) {
-			if (!nonLayoutOutDeclarationMatcher.matchesExtract(declaration)) {
-				continue;
-			}
+            if (addedDeclarations == members.size()) {
+               declarationsToRemove.add(declaration);
+            }
+         }
+      }
 
-			// find the matching outColor members
-			List<DeclarationMember> members = nonLayoutOutDeclarationMatcher
-				.getNodeMatch("name*", DeclarationMember.class)
-				.getAncestor(TypeAndInitDeclaration.class)
-				.getMembers();
-			TypeQualifier typeQualifier = nonLayoutOutDeclarationMatcher.getNodeMatch("qualifier", TypeQualifier.class);
-			BuiltinNumericTypeSpecifier typeSpecifier = nonLayoutOutDeclarationMatcher.getNodeMatch("type",
-				BuiltinNumericTypeSpecifier.class);
-			int addedDeclarations = 0;
-			for (DeclarationMember member : members) {
-				String name = member.getName().getName();
+      tree.getChildren().removeAll(declarationsToRemove);
 
-				map.put(name, location);
+      for (ExternalDeclaration declaration : declarationsToRemove) {
+         declaration.detachParent();
+      }
 
-				Iris.logger.warn("Found a declaration named " + name);
-				newDeclarationData.add(new NewDeclarationData(typeQualifier, typeSpecifier, member, location++, name));
-				addedDeclarations++;
-			}
+      ArrayList<ExternalDeclaration> newDeclarations = new ArrayList<>();
 
-			// if the member list is now empty, remove the declaration
-			if (addedDeclarations == members.size()) {
-				declarationsToRemove.add(declaration);
-			}
-		}
-		tree.getChildren().removeAll(declarationsToRemove);
-		for (ExternalDeclaration declaration : declarationsToRemove) {
-			declaration.detachParent();
-		}
+      for (LayoutTransformer.NewDeclarationData data : newDeclarationData) {
+         DeclarationMember member = data.member;
+         member.detach();
+         TypeQualifier newQualifier = data.qualifier.cloneInto(root);
+         newQualifier.getChildren()
+            .add(0, new LayoutQualifier(Stream.of(new NamedLayoutQualifierPart(new Identifier("location"), new LiteralExpression(Type.INT32, data.location)))));
+         ExternalDeclaration newDeclaration = (ExternalDeclaration)layoutedOutDeclarationTemplate.getInstanceFor(
+            root, new ASTNode[]{newQualifier, data.type.cloneInto(root), member}
+         );
+         newDeclarations.add(newDeclaration);
+      }
 
-		// generate new declarations with layout qualifiers for each outColor member
-		ArrayList<ExternalDeclaration> newDeclarations = new ArrayList<>();
+      tree.injectNodes(ASTInjectionPoint.BEFORE_DECLARATIONS, newDeclarations);
+      return map;
+   }
 
-		// Note: since everything is wrapped in a big Root.indexBuildSession, we don't
-		// need to do it manually here
-		for (NewDeclarationData data : newDeclarationData) {
-			DeclarationMember member = data.member;
-			member.detach();
-			TypeQualifier newQualifier = data.qualifier.cloneInto(root);
-			newQualifier.getChildren()
-				.add(0, new LayoutQualifier(Stream.of(new NamedLayoutQualifierPart(
-					new Identifier("location"),
-					new LiteralExpression(Type.INT32, data.location)))));
-			ExternalDeclaration newDeclaration = layoutedOutDeclarationTemplate.getInstanceFor(root,
-				newQualifier,
-				data.type.cloneInto(root),
-				member);
-			newDeclarations.add(newDeclaration);
-		}
-		tree.injectNodes(ASTInjectionPoint.BEFORE_DECLARATIONS, newDeclarations);
+   public static void transformIn(Object2IntMap<String> map, ASTParser t, TranslationUnit tree, Root root, Parameters parameters) {
+      ArrayList<LayoutTransformer.NewDeclarationData> newDeclarationData = new ArrayList<>();
+      ArrayList<ExternalDeclaration> declarationsToRemove = new ArrayList<>();
 
-		return map;
-	}
+      for (DeclarationExternalDeclaration declaration : root.nodeIndex.get(DeclarationExternalDeclaration.class)) {
+         if (nonLayoutInDeclarationMatcher.matchesExtract(declaration)) {
+            List<DeclarationMember> members = ((TypeAndInitDeclaration)((DeclarationMember)nonLayoutInDeclarationMatcher.getNodeMatch(
+                     "name*", DeclarationMember.class
+                  ))
+                  .getAncestor(TypeAndInitDeclaration.class))
+               .getMembers();
+            TypeQualifier typeQualifier = (TypeQualifier)nonLayoutInDeclarationMatcher.getNodeMatch("qualifier", TypeQualifier.class);
+            BuiltinNumericTypeSpecifier typeSpecifier = (BuiltinNumericTypeSpecifier)nonLayoutInDeclarationMatcher.getNodeMatch(
+               "type", BuiltinNumericTypeSpecifier.class
+            );
+            int addedDeclarations = 0;
 
-	public static void transformIn(Object2IntMap<String> map, ASTParser t, TranslationUnit tree, Root root, Parameters parameters) {
-		// do layout attachment (attaches a location(layout = 4) to the out declaration
-		// outColor4 for example)
+            for (DeclarationMember member : members) {
+               String name = member.getName().getName();
+               Iris.logger.warn("Found a member with name " + name);
+               if (map.containsKey(name)) {
+                  newDeclarationData.add(new LayoutTransformer.NewDeclarationData(typeQualifier, typeSpecifier, member, map.getInt(name), name));
+                  addedDeclarations++;
+               }
+            }
 
-		// iterate the declarations
-		ArrayList<NewDeclarationData> newDeclarationData = new ArrayList<>();
+            if (addedDeclarations == members.size()) {
+               declarationsToRemove.add(declaration);
+            }
+         }
+      }
 
-		ArrayList<ExternalDeclaration> declarationsToRemove = new ArrayList<>();
-		for (DeclarationExternalDeclaration declaration : root.nodeIndex.get(DeclarationExternalDeclaration.class)) {
-			if (!nonLayoutInDeclarationMatcher.matchesExtract(declaration)) {
-				continue;
-			}
+      tree.getChildren().removeAll(declarationsToRemove);
 
-			// find the matching outColor members
-			List<DeclarationMember> members = nonLayoutInDeclarationMatcher
-				.getNodeMatch("name*", DeclarationMember.class)
-				.getAncestor(TypeAndInitDeclaration.class)
-				.getMembers();
-			TypeQualifier typeQualifier = nonLayoutInDeclarationMatcher.getNodeMatch("qualifier", TypeQualifier.class);
-			BuiltinNumericTypeSpecifier typeSpecifier = nonLayoutInDeclarationMatcher.getNodeMatch("type",
-				BuiltinNumericTypeSpecifier.class);
-			int addedDeclarations = 0;
-			for (DeclarationMember member : members) {
-				String name = member.getName().getName();
-				Iris.logger.warn("Found a member with name " + name);
+      for (ExternalDeclaration declaration : declarationsToRemove) {
+         declaration.detachParent();
+      }
 
-				if (!map.containsKey(name)) {
-					continue;
-				}
+      ArrayList<ExternalDeclaration> newDeclarations = new ArrayList<>();
 
-				newDeclarationData.add(new NewDeclarationData(typeQualifier, typeSpecifier, member, map.getInt(name), name));
-				addedDeclarations++;
-			}
+      for (LayoutTransformer.NewDeclarationData data : newDeclarationData) {
+         DeclarationMember member = data.member;
+         member.detach();
+         TypeQualifier newQualifier = data.qualifier.cloneInto(root);
+         newQualifier.getChildren()
+            .add(0, new LayoutQualifier(Stream.of(new NamedLayoutQualifierPart(new Identifier("location"), new LiteralExpression(Type.INT32, data.location)))));
+         ExternalDeclaration newDeclaration = (ExternalDeclaration)layoutedInDeclarationTemplate.getInstanceFor(
+            root, new ASTNode[]{newQualifier, data.type.cloneInto(root), member}
+         );
+         newDeclarations.add(newDeclaration);
+      }
 
-			// if the member list is now empty, remove the declaration
-			if (addedDeclarations == members.size()) {
-				declarationsToRemove.add(declaration);
-			}
-		}
-		tree.getChildren().removeAll(declarationsToRemove);
-		for (ExternalDeclaration declaration : declarationsToRemove) {
-			declaration.detachParent();
-		}
+      tree.injectNodes(ASTInjectionPoint.BEFORE_DECLARATIONS, newDeclarations);
+   }
 
-		// generate new declarations with layout qualifiers for each outColor member
-		ArrayList<ExternalDeclaration> newDeclarations = new ArrayList<>();
+   static {
+      layoutedOutDeclarationTemplate.markLocalReplacement(layoutedOutDeclarationTemplate.getSourceRoot().nodeIndex.getOne(TypeQualifier.class));
+      layoutedOutDeclarationTemplate.markLocalReplacement("__type", TypeSpecifier.class);
+      layoutedOutDeclarationTemplate.markLocalReplacement("__name", DeclarationMember.class);
+      layoutedInDeclarationTemplate.markLocalReplacement(layoutedInDeclarationTemplate.getSourceRoot().nodeIndex.getOne(TypeQualifier.class));
+      layoutedInDeclarationTemplate.markLocalReplacement("__type", TypeSpecifier.class);
+      layoutedInDeclarationTemplate.markLocalReplacement("__name", DeclarationMember.class);
+   }
 
-		// Note: since everything is wrapped in a big Root.indexBuildSession, we don't
-		// need to do it manually here
-		for (NewDeclarationData data : newDeclarationData) {
-			DeclarationMember member = data.member;
-			member.detach();
-			TypeQualifier newQualifier = data.qualifier.cloneInto(root);
-			newQualifier.getChildren()
-				.add(0, new LayoutQualifier(Stream.of(new NamedLayoutQualifierPart(
-					new Identifier("location"),
-					new LiteralExpression(Type.INT32, data.location)))));
-			ExternalDeclaration newDeclaration = layoutedInDeclarationTemplate.getInstanceFor(root,
-				newQualifier,
-				data.type.cloneInto(root),
-				member);
-			newDeclarations.add(newDeclaration);
-		}
-		tree.injectNodes(ASTInjectionPoint.BEFORE_DECLARATIONS, newDeclarations);
-	}
+   private static class DeclarationMatcher extends Matcher<ExternalDeclaration> {
+      private final StorageType storageType;
 
-	private static class DeclarationMatcher extends Matcher<ExternalDeclaration> {
-		private final StorageType storageType;
+      public DeclarationMatcher(StorageType storageType) {
+         super("out float name;", ParseShape.EXTERNAL_DECLARATION);
+         this.markClassWildcard("qualifier", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(TypeQualifier.class));
+         this.markClassWildcard("type", ((ExternalDeclaration)this.pattern).getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
+         this.markClassWildcard(
+            "name*", ((Identifier)((ExternalDeclaration)this.pattern).getRoot().identifierIndex.getUnique("name")).getAncestor(DeclarationMember.class)
+         );
+         this.storageType = storageType;
+      }
 
-		{
-			markClassWildcard("qualifier", pattern.getRoot().nodeIndex.getUnique(TypeQualifier.class));
-			markClassWildcard("type", pattern.getRoot().nodeIndex.getUnique(BuiltinNumericTypeSpecifier.class));
-			markClassWildcard("name*",
-				pattern.getRoot().identifierIndex.getUnique("name").getAncestor(DeclarationMember.class));
-		}
+      public boolean matchesExtract(ExternalDeclaration tree) {
+         boolean result = super.matchesExtract(tree);
+         if (!result) {
+            return false;
+         }
 
-		public DeclarationMatcher(StorageType storageType) {
-			super("out float name;", ParseShape.EXTERNAL_DECLARATION);
-			this.storageType = storageType;
-		}
+         TypeQualifier qualifier = (TypeQualifier)this.getNodeMatch("qualifier", TypeQualifier.class);
 
-		@Override
-		public boolean matchesExtract(ExternalDeclaration tree) {
-			boolean result = super.matchesExtract(tree);
-			if (!result) {
-				return false;
-			}
-			TypeQualifier qualifier = getNodeMatch("qualifier", TypeQualifier.class);
-			for (TypeQualifierPart part : qualifier.getParts()) {
-				if (part instanceof StorageQualifier storageQualifier) {
-					if (storageQualifier.storageType == storageType) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-	}
+         for (TypeQualifierPart part : qualifier.getParts()) {
+            if (part instanceof StorageQualifier storageQualifier && storageQualifier.storageType == this.storageType) {
+               return true;
+            }
+         }
 
-	record NewDeclarationData(TypeQualifier qualifier, TypeSpecifier type, DeclarationMember member, int location,
-							  String name) {
-	}
+         return false;
+      }
+   }
+
+   record NewDeclarationData(TypeQualifier qualifier, TypeSpecifier type, DeclarationMember member, int location, String name) {
+   }
 }

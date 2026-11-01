@@ -6,35 +6,23 @@ import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 
 public class BufferFlipper {
-	private final IntSet flippedBuffers;
+   private final IntSet flippedBuffers = new IntOpenHashSet();
 
-	public BufferFlipper() {
-		this.flippedBuffers = new IntOpenHashSet();
-	}
+   public void flip(int target) {
+      if (!this.flippedBuffers.remove(target)) {
+         this.flippedBuffers.add(target);
+      }
+   }
 
-	public void flip(int target) {
-		if (!flippedBuffers.remove(target)) {
-			// If the target wasn't in the set, add it to the set.
-			flippedBuffers.add(target);
-		}
-	}
+   public boolean isFlipped(int target) {
+      return this.flippedBuffers.contains(target);
+   }
 
-	/**
-	 * Returns true if this buffer is flipped.
-	 * <p>
-	 * If this buffer is not flipped, then users should write to the alternate variant and read from the main variant.
-	 * <p>
-	 * If this buffer is flipped, then users should write to the main variant and read from the alternate variant.
-	 */
-	public boolean isFlipped(int target) {
-		return flippedBuffers.contains(target);
-	}
+   public IntIterator getFlippedBuffers() {
+      return this.flippedBuffers.iterator();
+   }
 
-	public IntIterator getFlippedBuffers() {
-		return flippedBuffers.iterator();
-	}
-
-	public ImmutableSet<Integer> snapshot() {
-		return ImmutableSet.copyOf(flippedBuffers);
-	}
+   public ImmutableSet<Integer> snapshot() {
+      return ImmutableSet.copyOf(this.flippedBuffers);
+   }
 }

@@ -4,5 +4,5 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 
 public interface ParticleRenderStateExtension {
-	void submitWithoutItems(SubmitNodeStorage submitNodeStorage, CameraRenderState cameraRenderState);
+   void submitWithoutItems(SubmitNodeStorage var1, CameraRenderState var2);
 }

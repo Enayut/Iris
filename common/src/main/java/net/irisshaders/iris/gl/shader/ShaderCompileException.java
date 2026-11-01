@@ -1,33 +1,31 @@
 package net.irisshaders.iris.gl.shader;
 
 public class ShaderCompileException extends RuntimeException {
-	private final String filename;
-	private final String error;
+   private final String filename;
+   private final String error;
 
-	public ShaderCompileException(String filename, String error) {
-		super(filename + ": " + error);
+   public ShaderCompileException(String filename, String error) {
+      super(filename + ": " + error);
+      this.filename = filename;
+      this.error = error;
+   }
 
-		this.filename = filename;
-		this.error = error;
-	}
+   public ShaderCompileException(String filename, Exception error) {
+      super(error);
+      this.filename = filename;
+      this.error = error.getMessage();
+   }
 
-	public ShaderCompileException(String filename, Exception error) {
-		super(error);
+   @Override
+   public String getMessage() {
+      return this.filename + ": " + super.getMessage();
+   }
 
-		this.filename = filename;
-		this.error = error.getMessage();
-	}
+   public String getError() {
+      return this.error;
+   }
 
-	@Override
-	public String getMessage() {
-		return filename + ": " + super.getMessage();
-	}
-
-	public String getError() {
-		return error;
-	}
-
-	public String getFilename() {
-		return filename;
-	}
+   public String getFilename() {
+      return this.filename;
+   }
 }

@@ -7,107 +7,102 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-// TODO: Write tests for this
 public class AbsolutePackPath {
-	private final String path;
+   private final String path;
 
-	private AbsolutePackPath(String absolute) {
-		this.path = absolute;
-	}
+   private AbsolutePackPath(String absolute) {
+      this.path = absolute;
+   }
 
-	public static AbsolutePackPath fromAbsolutePath(String absolutePath) {
-		return new AbsolutePackPath(normalizeAbsolutePath(absolutePath));
-	}
+   public static AbsolutePackPath fromAbsolutePath(String absolutePath) {
+      return new AbsolutePackPath(normalizeAbsolutePath(absolutePath));
+   }
 
-	private static String normalizeAbsolutePath(String path) {
-		if (!path.startsWith("/")) {
-			throw new IllegalArgumentException("Not an absolute path: " + path);
-		}
+   private static String normalizeAbsolutePath(String path) {
+      if (!path.startsWith("/")) {
+         throw new IllegalArgumentException("Not an absolute path: " + path);
+      }
 
-		String[] segments = path.split(Pattern.quote("/"));
-		List<String> parsedSegments = new ArrayList<>();
+      String[] segments = path.split(Pattern.quote("/"));
+      List<String> parsedSegments = new ArrayList<>();
 
-		for (String segment : segments) {
-			if (segment.isEmpty() || segment.equals(".")) {
-				continue;
-			}
+      for (String segment : segments) {
+         if (!segment.isEmpty() && !segment.equals(".")) {
+            if (segment.equals("..")) {
+               if (!parsedSegments.isEmpty()) {
+                  parsedSegments.removeLast();
+               }
+            } else {
+               parsedSegments.add(segment);
+            }
+         }
+      }
 
-			if (segment.equals("..")) {
-				if (!parsedSegments.isEmpty()) {
-					parsedSegments.removeLast();
-				}
-			} else {
-				parsedSegments.add(segment);
-			}
-		}
+      if (parsedSegments.isEmpty()) {
+         return "/";
+      }
 
-		if (parsedSegments.isEmpty()) {
-			return "/";
-		}
+      StringBuilder normalized = new StringBuilder();
 
-		StringBuilder normalized = new StringBuilder();
+      for (String segment : parsedSegments) {
+         normalized.append('/');
+         normalized.append(segment);
+      }
 
-		for (String segment : parsedSegments) {
-			normalized.append('/');
-			normalized.append(segment);
-		}
+      return normalized.toString();
+   }
 
-		return normalized.toString();
-	}
+   public Optional<AbsolutePackPath> parent() {
+      if (this.path.equals("/")) {
+         return Optional.empty();
+      }
 
-	public Optional<AbsolutePackPath> parent() {
-		if (path.equals("/")) {
-			return Optional.empty();
-		}
+      int lastSlash = this.path.lastIndexOf(47);
+      return Optional.of(new AbsolutePackPath(this.path.substring(0, lastSlash)));
+   }
 
-		int lastSlash = path.lastIndexOf('/');
+   public AbsolutePackPath resolve(String path) {
+      if (path.startsWith("/")) {
+         return fromAbsolutePath(path);
+      }
 
-		return Optional.of(new AbsolutePackPath(path.substring(0, lastSlash)));
-	}
+      String merged;
+      if (!this.path.endsWith("/") & !path.startsWith("/")) {
+         merged = this.path + "/" + path;
+      } else {
+         merged = this.path + path;
+      }
 
-	public AbsolutePackPath resolve(String path) {
-		if (path.startsWith("/")) {
-			return fromAbsolutePath(path);
-		}
+      return fromAbsolutePath(merged);
+   }
 
-		String merged;
+   public Path resolved(Path root) {
+      return this.path.equals("/") ? root : root.resolve(this.path.substring(1));
+   }
 
-		if (!this.path.endsWith("/") & !path.startsWith("/")) {
-			merged = this.path + "/" + path;
-		} else {
-			merged = this.path + path;
-		}
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) {
+         return true;
+      } else if (o != null && this.getClass() == o.getClass()) {
+         AbsolutePackPath that = (AbsolutePackPath)o;
+         return Objects.equals(this.path, that.path);
+      } else {
+         return false;
+      }
+   }
 
-		return fromAbsolutePath(merged);
-	}
+   @Override
+   public int hashCode() {
+      return Objects.hash(this.path);
+   }
 
-	public Path resolved(Path root) {
-		if (path.equals("/")) {
-			return root;
-		}
+   @Override
+   public String toString() {
+      return "AbsolutePackPath {" + this.getPathString() + "}";
+   }
 
-		return root.resolve(path.substring(1));
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		AbsolutePackPath that = (AbsolutePackPath) o;
-		return Objects.equals(path, that.path);
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(path);
-	}
-
-	@Override
-	public String toString() {
-		return "AbsolutePackPath {" + getPathString() + "}";
-	}
-
-	public String getPathString() {
-		return path;
-	}
+   public String getPathString() {
+      return this.path;
+   }
 }

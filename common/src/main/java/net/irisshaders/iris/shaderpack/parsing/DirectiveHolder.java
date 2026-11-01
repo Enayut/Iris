@@ -2,33 +2,32 @@ package net.irisshaders.iris.shaderpack.parsing;
 
 import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import it.unimi.dsi.fastutil.floats.FloatConsumer;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import org.joml.Vector2f;
 import org.joml.Vector3i;
 import org.joml.Vector4f;
 
-import java.util.function.Consumer;
-import java.util.function.IntConsumer;
-
 public interface DirectiveHolder {
-	void acceptUniformDirective(String name, Runnable onDetected);
+   void acceptUniformDirective(String var1, Runnable var2);
 
-	void acceptCommentStringDirective(String name, Consumer<String> consumer);
+   void acceptCommentStringDirective(String var1, Consumer<String> var2);
 
-	void acceptCommentIntDirective(String name, IntConsumer consumer);
+   void acceptCommentIntDirective(String var1, IntConsumer var2);
 
-	void acceptCommentFloatDirective(String name, FloatConsumer consumer);
+   void acceptCommentFloatDirective(String var1, FloatConsumer var2);
 
-	void acceptConstBooleanDirective(String name, BooleanConsumer consumer);
+   void acceptConstBooleanDirective(String var1, BooleanConsumer var2);
 
-	void acceptConstStringDirective(String name, Consumer<String> consumer);
+   void acceptConstStringDirective(String var1, Consumer<String> var2);
 
-	void acceptConstIntDirective(String name, IntConsumer consumer);
+   void acceptConstIntDirective(String var1, IntConsumer var2);
 
-	void acceptConstFloatDirective(String name, FloatConsumer consumer);
+   void acceptConstFloatDirective(String var1, FloatConsumer var2);
 
-	void acceptConstVec2Directive(String name, Consumer<Vector2f> consumer);
+   void acceptConstVec2Directive(String var1, Consumer<Vector2f> var2);
 
-	void acceptConstIVec3Directive(String name, Consumer<Vector3i> consumer);
+   void acceptConstIVec3Directive(String var1, Consumer<Vector3i> var2);
 
-	void acceptConstVec4Directive(String name, Consumer<Vector4f> consumer);
+   void acceptConstVec4Directive(String var1, Consumer<Vector4f> var2);
 }

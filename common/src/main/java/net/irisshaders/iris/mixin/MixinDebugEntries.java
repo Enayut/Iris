@@ -13,14 +13,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(DebugScreenEntries.class)
 public abstract class MixinDebugEntries {
-	@Shadow
-	public static Identifier register(Identifier Identifier, DebugScreenEntry debugScreenEntry) {
-		return null;
-	}
+   @Shadow
+   public static Identifier register(Identifier Identifier, DebugScreenEntry debugScreenEntry) {
+      return null;
+   }
 
-	@Inject(method = "<clinit>", at = @At(value = "RETURN"))
-	private static void onInit(CallbackInfo ci) {
-		register(Identifier.fromNamespaceAndPath("iris", "iris"), new IrisDebugEntry());
-		register(Identifier.fromNamespaceAndPath("iris", "debug"), new IrisTrueDebugEntry());
-	}
+   @Inject(method = "<clinit>", at = @At("RETURN"))
+   private static void onInit(CallbackInfo ci) {
+      register(Identifier.fromNamespaceAndPath("iris", "iris"), new IrisDebugEntry());
+      register(Identifier.fromNamespaceAndPath("iris", "debug"), new IrisTrueDebugEntry());
+   }
 }

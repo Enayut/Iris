@@ -1,23 +1,23 @@
 package net.irisshaders.iris.shaderpack.transform;
 
 public interface Transformations {
-	boolean contains(String content);
+   boolean contains(String var1);
 
-	void injectLine(InjectionPoint at, String line);
+   void injectLine(Transformations.InjectionPoint var1, String var2);
 
-	void replaceExact(String from, String to);
+   void replaceExact(String var1, String var2);
 
-	void replaceRegex(String regex, String to);
+   void replaceRegex(String var1, String var2);
 
-	String getPrefix();
+   String getPrefix();
 
-	void setPrefix(String prefix);
+   void setPrefix(String var1);
 
-	void define(String key, String value);
+   void define(String var1, String var2);
 
-	enum InjectionPoint {
-		DEFINES,
-		BEFORE_CODE,
-		END
-	}
+   enum InjectionPoint {
+      DEFINES,
+      BEFORE_CODE,
+      END;
+   }
 }

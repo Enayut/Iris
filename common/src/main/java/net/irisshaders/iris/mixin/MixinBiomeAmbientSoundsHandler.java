@@ -19,31 +19,35 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(BiomeAmbientSoundsHandler.class)
 public class MixinBiomeAmbientSoundsHandler implements BiomeAmbienceInterface {
-	@Shadow
-	@Final
-	private LocalPlayer player;
+   @Shadow
+   @Final
+   private LocalPlayer player;
+   @Unique
+   private float constantMoodiness;
 
-	@Unique
-	private float constantMoodiness;
+   @Inject(
+      method = {"method_75840", "lambda$tick$1"},
+      at = @At(
+         value = "INVOKE",
+         target = "Lnet/minecraft/world/level/Level;getBrightness(Lnet/minecraft/world/level/LightLayer;Lnet/minecraft/core/BlockPos;)I",
+         ordinal = 0
+      ),
+      require = 1
+   )
+   private void calculateConstantMoodiness(Level level, AmbientMoodSettings ambientMoodSettings, CallbackInfo ci, @Local BlockPos blockPos) {
+      int j = this.player.level().getBrightness(LightLayer.SKY, blockPos);
+      if (j > 0) {
+         this.constantMoodiness -= j / 15.0F * 0.001F;
+      } else {
+         this.constantMoodiness = this.constantMoodiness
+            - (float)(this.player.level().getBrightness(LightLayer.BLOCK, blockPos) - 1) / ambientMoodSettings.tickDelay();
+      }
 
-	@SuppressWarnings("UnresolvedMixinReference")
-	@Inject(method = {
-		"method_75840",
-		"lambda$tick$1"
-	}, at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getBrightness(Lnet/minecraft/world/level/LightLayer;Lnet/minecraft/core/BlockPos;)I", ordinal = 0), require = 1)
-	private void calculateConstantMoodiness(Level level, AmbientMoodSettings ambientMoodSettings, CallbackInfo ci, @Local BlockPos blockPos) {
-		int j = this.player.level().getBrightness(LightLayer.SKY, blockPos);
-		if (j > 0) {
-			this.constantMoodiness -= (float) j / (float) 15 * 0.001F;
-		} else {
-			this.constantMoodiness -= (float) (this.player.level().getBrightness(LightLayer.BLOCK, blockPos) - 1) / (float) ambientMoodSettings.tickDelay();
-		}
+      this.constantMoodiness = Mth.clamp(this.constantMoodiness, 0.0F, 1.0F);
+   }
 
-		this.constantMoodiness = Mth.clamp(constantMoodiness, 0.0f, 1.0f);
-	}
-
-	@Override
-	public float getConstantMood() {
-		return constantMoodiness;
-	}
+   @Override
+   public float getConstantMood() {
+      return this.constantMoodiness;
+   }
 }

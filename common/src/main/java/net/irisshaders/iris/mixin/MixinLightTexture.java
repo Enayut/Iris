@@ -15,17 +15,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LightmapRenderStateExtractor.class)
 public class MixinLightTexture {
-	@Shadow
-	@Final
-	private Minecraft minecraft;
+   @Shadow
+   @Final
+   private Minecraft minecraft;
 
-	@Inject(method = "extract", at = @At(value = "INVOKE", ordinal = 0, target = "Lnet/minecraft/world/attribute/EnvironmentAttributeProbe;getValue(Lnet/minecraft/world/attribute/EnvironmentAttribute;F)Ljava/lang/Object;"))
-	private void resetDarknessValue(LightmapRenderState renderState, float partialTicks, CallbackInfo ci) {
-		CapturedRenderingState.INSTANCE.setDarknessLightFactor(0.0F);
-	}
+   @Inject(
+      method = "extract",
+      at = @At(
+         value = "INVOKE",
+         ordinal = 0,
+         target = "Lnet/minecraft/world/attribute/EnvironmentAttributeProbe;getValue(Lnet/minecraft/world/attribute/EnvironmentAttribute;F)Ljava/lang/Object;"
+      )
+   )
+   private void resetDarknessValue(LightmapRenderState renderState, float partialTicks, CallbackInfo ci) {
+      CapturedRenderingState.INSTANCE.setDarknessLightFactor(0.0F);
+   }
 
-	@Inject(method = "calculateDarknessScale", at = @At("RETURN"))
-	private void storeDarknessValue(LivingEntity $$0, float $$1, float $$2, CallbackInfoReturnable<Float> cir) {
-		CapturedRenderingState.INSTANCE.setDarknessLightFactor((float) (cir.getReturnValue() * this.minecraft.options.darknessEffectScale().get()));
-	}
+   @Inject(method = "calculateDarknessScale", at = @At("RETURN"))
+   private void storeDarknessValue(LivingEntity $$0, float $$1, float $$2, CallbackInfoReturnable<Float> cir) {
+      CapturedRenderingState.INSTANCE
+         .setDarknessLightFactor((float)(((Float)cir.getReturnValue()).floatValue() * (Double)this.minecraft.options.darknessEffectScale().get()));
+   }
 }

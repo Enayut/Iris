@@ -1,5 +1,5 @@
 package net.irisshaders.iris.mixinterface;
 
 public interface LocalPlayerInterface {
-	float getCurrentConstantMood();
+   float getCurrentConstantMood();
 }

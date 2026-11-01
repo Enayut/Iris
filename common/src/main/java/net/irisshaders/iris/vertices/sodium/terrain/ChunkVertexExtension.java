@@ -1,23 +1,23 @@
 package net.irisshaders.iris.vertices.sodium.terrain;
 
 public interface ChunkVertexExtension {
-	void iris$setData(byte blockEmission, byte renderType, int blockId, int localX, int localY, int localZ);
+   void iris$setData(byte var1, byte var2, int var3, int var4, int var5, int var6);
 
-	void iris$ignoresMidBlock(boolean setIgnore);
+   void iris$ignoresMidBlock(boolean var1);
 
-	void iris$copyData(ChunkVertexExtension dest);
+   void iris$copyData(ChunkVertexExtension var1);
 
-	int getLocalPosX();
+   int getLocalPosX();
 
-	int getLocalPosY();
+   int getLocalPosY();
 
-	int getLocalPosZ();
+   int getLocalPosZ();
 
-	int getBlockId();
+   int getBlockId();
 
-	byte getRenderType();
+   byte getRenderType();
 
-	byte getBlockEmission();
+   byte getBlockEmission();
 
-	boolean ignoreMidBlock();
+   boolean ignoreMidBlock();
 }

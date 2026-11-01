@@ -1,9 +1,9 @@
 package net.irisshaders.iris.mixinterface;
 
 public interface ExtendedBiome {
-	int getBiomeCategory();
+   int getBiomeCategory();
 
-	void setBiomeCategory(int biomeCategory);
+   void setBiomeCategory(int var1);
 
-	float getDownfall();
+   float getDownfall();
 }

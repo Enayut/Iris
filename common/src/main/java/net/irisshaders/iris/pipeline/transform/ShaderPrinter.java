@@ -1,149 +1,144 @@
 package net.irisshaders.iris.pipeline.transform;
 
-import net.irisshaders.iris.Iris;
-import net.irisshaders.iris.platform.IrisPlatformHelpers;
-import org.apache.commons.io.FilenameUtils;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Stream;
+import net.irisshaders.iris.Iris;
+import net.irisshaders.iris.platform.IrisPlatformHelpers;
+import org.apache.commons.io.FilenameUtils;
 
-/**
- * Static class that deals with printing the patched_shader folder.
- */
 public class ShaderPrinter {
-	private static final Path debugOutDir = IrisPlatformHelpers.getInstance().getGameDir().resolve("patched_shaders");
-	private static boolean outputLocationCleared = false;
-	private static int programCounter = 0;
+   private static final Path debugOutDir = IrisPlatformHelpers.getInstance().getGameDir().resolve("patched_shaders");
+   private static boolean outputLocationCleared = false;
+   private static int programCounter = 0;
 
-	public static void resetPrintState() {
-		outputLocationCleared = false;
-		programCounter = 0;
-	}
+   public static void resetPrintState() {
+      outputLocationCleared = false;
+      programCounter = 0;
+   }
 
-	public static void deleteIfClearing() {
-		if (!outputLocationCleared) {
-			try {
-				if (Files.exists(debugOutDir)) {
-					try (Stream<Path> stream = Files.list(debugOutDir)) {
-						stream.forEach(path -> {
-							try {
-								Files.delete(path);
-							} catch (IOException e) {
-								throw new RuntimeException(e);
-							}
-						});
-					}
-				}
+   public static void deleteIfClearing() {
+      if (!outputLocationCleared) {
+         try {
+            if (Files.exists(debugOutDir)) {
+               try (Stream<Path> stream = Files.list(debugOutDir)) {
+                  stream.forEach(path -> {
+                     try {
+                        Files.delete(path);
+                     } catch (IOException e) {
+                        throw new RuntimeException(e);
+                     }
+                  });
+               }
+            }
 
-				Files.createDirectories(debugOutDir);
-			} catch (IOException e) {
-				Iris.logger.warn("Failed to initialize debug patched shader source location", e);
-			}
-			outputLocationCleared = true;
-		}
-	}
+            Files.createDirectories(debugOutDir);
+         } catch (IOException e) {
+            Iris.logger.warn("Failed to initialize debug patched shader source location", e);
+         }
 
-	public static ProgramPrintBuilder printProgram(String name) {
-		return new ProgramPrintBuilder(name);
-	}
+         outputLocationCleared = true;
+      }
+   }
 
-	public static class ProgramPrintBuilder {
-		// copy the debug flag if for some reason the debug flag changes during the
-		// lifetime of this builder object
-		private final boolean isActive = Iris.getIrisConfig().areDebugOptionsEnabled();
+   public static ShaderPrinter.ProgramPrintBuilder printProgram(String name) {
+      return new ShaderPrinter.ProgramPrintBuilder(name);
+   }
 
-		// the prefix is created at instantiation time so that all sources attached to
-		// this builder use the same counter prefix
-		private final String prefix = isActive ? String.format("%03d_", ++programCounter) : null;
+   public static class ProgramPrintBuilder {
+      private final boolean isActive = Iris.getIrisConfig().areDebugOptionsEnabled();
+      private final String prefix = this.isActive ? String.format("%03d_", ++ShaderPrinter.programCounter) : null;
+      private final List<String> sources = this.isActive ? new ArrayList<>(PatchShaderType.values().length * 2) : null;
+      private String name;
+      private boolean done = false;
 
-		// the prefix and the sources list aren't created if debug is disabled
-		private final List<String> sources = isActive ? new ArrayList<>(PatchShaderType.values().length * 2) : null;
+      public ProgramPrintBuilder(String name) {
+         this.setName(name);
+      }
 
-		private String name;
-		private boolean done = false; // makes the print function idempotent
+      public ShaderPrinter.ProgramPrintBuilder setName(String name) {
+         this.name = name;
+         return this;
+      }
 
-		public ProgramPrintBuilder(String name) {
-			setName(name);
-		}
+      private void addItem(String extension, String content) {
+         if (content != null && this.sources != null) {
+            this.sources.add(this.prefix + this.name + extension);
+            this.sources.add(content);
+         }
+      }
 
-		public ProgramPrintBuilder setName(String name) {
-			this.name = name;
-			return this;
-		}
+      public ShaderPrinter.ProgramPrintBuilder addSource(PatchShaderType type, String source) {
+         if (this.sources == null) {
+            return this;
+         }
 
-		private void addItem(String extension, String content) {
-			if (content != null && sources != null) {
-				sources.add(prefix + name + extension);
-				sources.add(content);
-			}
-		}
+         this.addItem(type.extension, source);
+         return this;
+      }
 
-		public ProgramPrintBuilder addSource(PatchShaderType type, String source) {
-			if (sources == null) {
-				return this;
-			}
-			addItem(type.extension, source);
-			return this;
-		}
+      public ShaderPrinter.ProgramPrintBuilder addSources(Map<PatchShaderType, String> sources) {
+         if (sources == null) {
+            return this;
+         }
 
-		public ProgramPrintBuilder addSources(Map<PatchShaderType, String> sources) {
-			if (sources == null) {
-				return this;
-			}
-			for (Map.Entry<PatchShaderType, String> entry : sources.entrySet()) {
-				addSource(entry.getKey(), entry.getValue());
-			}
-			return this;
-		}
+         for (Entry<PatchShaderType, String> entry : sources.entrySet()) {
+            this.addSource(entry.getKey(), entry.getValue());
+         }
 
-		public ProgramPrintBuilder addJson(String json) {
-			if (sources == null) {
-				return this;
-			}
-			addItem(".json", json);
-			return this;
-		}
+         return this;
+      }
 
-		public void print() {
-			if (done) {
-				return;
-			}
-			done = true;
-			if (isActive) {
-				if (!outputLocationCleared) {
-					try {
-						if (Files.exists(debugOutDir)) {
-							try (Stream<Path> stream = Files.list(debugOutDir).filter(s -> !FilenameUtils.getExtension(s.toString()).contains("properties"))) {
-								stream.forEach(path -> {
-									try {
-										Files.delete(path);
-									} catch (IOException e) {
-										throw new RuntimeException(e);
-									}
-								});
-							}
-						}
+      public ShaderPrinter.ProgramPrintBuilder addJson(String json) {
+         if (this.sources == null) {
+            return this;
+         }
 
-						Files.createDirectories(debugOutDir);
-					} catch (IOException e) {
-						Iris.logger.warn("Failed to initialize debug patched shader source location", e);
-					}
-					outputLocationCleared = true;
-				}
+         this.addItem(".json", json);
+         return this;
+      }
 
-				try {
-					for (int i = 0; i < sources.size(); i += 2) {
-						Files.writeString(debugOutDir.resolve(sources.get(i)), sources.get(i + 1));
-					}
-				} catch (IOException e) {
-					Iris.logger.warn("Failed to write debug patched shader source", e);
-				}
-			}
-		}
-	}
+      public void print() {
+         if (!this.done) {
+            this.done = true;
+            if (this.isActive) {
+               if (!ShaderPrinter.outputLocationCleared) {
+                  try {
+                     if (Files.exists(ShaderPrinter.debugOutDir)) {
+                        try (Stream<Path> stream = Files.list(ShaderPrinter.debugOutDir)
+                              .filter(s -> !FilenameUtils.getExtension(s.toString()).contains("properties"))) {
+                           stream.forEach(path -> {
+                              try {
+                                 Files.delete(path);
+                              } catch (IOException e) {
+                                 throw new RuntimeException(e);
+                              }
+                           });
+                        }
+                     }
+
+                     Files.createDirectories(ShaderPrinter.debugOutDir);
+                  } catch (IOException e) {
+                     Iris.logger.warn("Failed to initialize debug patched shader source location", e);
+                  }
+
+                  ShaderPrinter.outputLocationCleared = true;
+               }
+
+               try {
+                  for (int i = 0; i < this.sources.size(); i += 2) {
+                     Files.writeString(ShaderPrinter.debugOutDir.resolve(this.sources.get(i)), this.sources.get(i + 1));
+                  }
+               } catch (IOException e) {
+                  Iris.logger.warn("Failed to write debug patched shader source", e);
+               }
+            }
+         }
+      }
+   }
 }

@@ -1,46 +1,38 @@
 package net.irisshaders.iris.pbr.util;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.irisshaders.iris.gl.IrisRenderSystem;
-import net.minecraft.client.Minecraft;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 
 public class TextureManipulationUtil {
-	private static int colorFillFBO = -1;
+   private static int colorFillFBO = -1;
 
-	public static void fillWithColor(int textureId, int maxLevel, int rgba) {
-		if (colorFillFBO == -1) {
-			colorFillFBO = GlStateManager.glGenFramebuffers();
-		}
+   public static void fillWithColor(int textureId, int maxLevel, int rgba) {
+      if (colorFillFBO == -1) {
+         colorFillFBO = GlStateManager.glGenFramebuffers();
+      }
 
-		int previousFramebufferId = GlStateManager._getInteger(GL30.GL_FRAMEBUFFER_BINDING);
-		float[] previousClearColor = new float[4];
-		IrisRenderSystem.getFloatv(GL11.GL_COLOR_CLEAR_VALUE, previousClearColor);
-		int previousTextureId = GlStateManager._getInteger(GL11.GL_TEXTURE_BINDING_2D);
-		int[] previousViewport = new int[4];
-		IrisRenderSystem.getIntegerv(GL11.GL_VIEWPORT, previousViewport);
+      int previousFramebufferId = GlStateManager._getInteger(36006);
+      float[] previousClearColor = new float[4];
+      IrisRenderSystem.getFloatv(3106, previousClearColor);
+      int previousTextureId = GlStateManager._getInteger(32873);
+      int[] previousViewport = new int[4];
+      IrisRenderSystem.getIntegerv(2978, previousViewport);
+      GlStateManager._glBindFramebuffer(36160, colorFillFBO);
+      IrisRenderSystem.clearColor((rgba >> 24 & 0xFF) / 255.0F, (rgba >> 16 & 0xFF) / 255.0F, (rgba >> 8 & 0xFF) / 255.0F, (rgba & 0xFF) / 255.0F);
+      GlStateManager._bindTexture(textureId);
 
-		GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, colorFillFBO);
-		IrisRenderSystem.clearColor(
-			(rgba >> 24 & 0xFF) / 255.0f,
-			(rgba >> 16 & 0xFF) / 255.0f,
-			(rgba >> 8 & 0xFF) / 255.0f,
-			(rgba & 0xFF) / 255.0f
-		);
-		GlStateManager._bindTexture(textureId);
-		for (int level = 0; level <= maxLevel; ++level) {
-			int width = GlStateManager._getTexLevelParameter(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_WIDTH);
-			int height = GlStateManager._getTexLevelParameter(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_HEIGHT);
-			GlStateManager._viewport(0, 0, width, height);
-			GlStateManager._glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, textureId, level);
-			GlStateManager._clear(GL11.GL_COLOR_BUFFER_BIT);
-			GlStateManager._glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, 0, level);
-		}
+      for (int level = 0; level <= maxLevel; level++) {
+         int width = GlStateManager._getTexLevelParameter(3553, level, 4096);
+         int height = GlStateManager._getTexLevelParameter(3553, level, 4097);
+         GlStateManager._viewport(0, 0, width, height);
+         GlStateManager._glFramebufferTexture2D(36160, 36064, 3553, textureId, level);
+         GlStateManager._clear(16384);
+         GlStateManager._glFramebufferTexture2D(36160, 36064, 3553, 0, level);
+      }
 
-		GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebufferId);
-		IrisRenderSystem.clearColor(previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
-		GlStateManager._bindTexture(previousTextureId);
-		GlStateManager._viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-	}
+      GlStateManager._glBindFramebuffer(36160, previousFramebufferId);
+      IrisRenderSystem.clearColor(previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
+      GlStateManager._bindTexture(previousTextureId);
+      GlStateManager._viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+   }
 }

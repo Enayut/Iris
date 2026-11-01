@@ -1,13 +1,12 @@
 package net.irisshaders.iris.gl.texture;
 
+import java.util.function.IntSupplier;
 import net.irisshaders.iris.gl.sampler.GlSampler;
 
-import java.util.function.IntSupplier;
-
 public interface TextureAccess {
-	TextureType getType();
+   TextureType getType();
 
-	IntSupplier getTextureId();
+   IntSupplier getTextureId();
 
-    GlSampler getSampling();
+   GlSampler getSampling();
 }

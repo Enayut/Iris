@@ -1,7 +1,8 @@
 package net.irisshaders.iris.compat.sodium.mixin;
 
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
-import net.caffeinemc.mods.sodium.client.gl.device.MultiDrawBatch;
+import java.util.Map;
+import net.caffeinemc.mods.sodium.client.gpu.device.batch.MultiDrawBatch;
 import net.caffeinemc.mods.sodium.client.render.chunk.lists.ChunkRenderList;
 import net.caffeinemc.mods.sodium.client.render.chunk.region.RenderRegion;
 import net.caffeinemc.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
@@ -13,133 +14,145 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.Map;
 
 @Mixin(RenderRegion.class)
 public class MixinRenderRegion implements ShadowRenderRegion {
-	@Final
-	@Shadow
-	@Mutable
-	private ChunkRenderList renderList;
+   @Final
+   @Shadow
+   @Mutable
+   private ChunkRenderList renderList;
+   @Mutable
+   @Shadow
+   @Final
+   private Map<TerrainRenderPass, MultiDrawBatch> cachedBatches;
+   @Unique
+   ChunkRenderList regularRenderList;
+   @Unique
+   ChunkRenderList shadowRenderList;
+   @Unique
+   Map<TerrainRenderPass, MultiDrawBatch> regularCachedBatches;
+   @Unique
+   Map<TerrainRenderPass, MultiDrawBatch> shadowCachedBatches;
+   @Unique
+   private boolean iris$shadowRenderListActive;
 
-	@Mutable
-	@Shadow
-	@Final
-	private Map<TerrainRenderPass, MultiDrawBatch> cachedBatches;
+   @Unique
+   @Override
+   public void swapToShadowRenderList() {
+      if (!this.iris$shadowRenderListActive) {
+         this.regularRenderList = this.renderList;
+         this.renderList = this.shadowRenderList;
+         this.regularCachedBatches = this.cachedBatches;
+         this.cachedBatches = this.shadowCachedBatches;
+         this.shadowCachedBatches = null;
+         this.iris$shadowRenderListActive = true;
+         this.ensureRenderList();
+      }
+   }
 
-	@Unique
-	ChunkRenderList regularRenderList;
+   @Unique
+   @Override
+   public void swapToRegularRenderList() {
+      if (this.iris$shadowRenderListActive) {
+         this.shadowRenderList = this.renderList;
+         this.renderList = this.regularRenderList;
+         this.shadowCachedBatches = this.cachedBatches;
+         this.cachedBatches = this.regularCachedBatches;
+         this.regularCachedBatches = null;
+         this.iris$shadowRenderListActive = false;
+         this.ensureRenderList();
+      }
+   }
 
-	@Unique
-	ChunkRenderList shadowRenderList;
+   @Unique
+   private void ensureRenderList() {
+      if (this.renderList == null) {
+         this.renderList = new ChunkRenderList((RenderRegion)(Object)this);
+      }
 
-	@Unique
-	Map<TerrainRenderPass, MultiDrawBatch> regularCachedBatches;
+      if (this.cachedBatches == null) {
+         this.cachedBatches = new Reference2ReferenceOpenHashMap();
+      }
+   }
 
-	@Unique
-	Map<TerrainRenderPass, MultiDrawBatch> shadowCachedBatches;
+   @Inject(method = "delete", at = @At("HEAD"))
+   private void iris$delete(CallbackInfo ci) {
+      if (this.regularCachedBatches != null) {
+         for (MultiDrawBatch batch : this.regularCachedBatches.values()) {
+            batch.delete();
+         }
+      }
 
-	@Unique
-	private boolean iris$shadowRenderListActive;
+      if (this.shadowCachedBatches != null) {
+         for (MultiDrawBatch batch : this.shadowCachedBatches.values()) {
+            batch.delete();
+         }
+      }
+   }
 
-	@Unique
-	@Override
-	public void swapToShadowRenderList() {
-		if (this.iris$shadowRenderListActive) {
-			return;
-		}
+   @Override
+   public void iris$forceClearAllBatches() {
+      if (this.regularCachedBatches != null) {
+         for (MultiDrawBatch batch : this.regularCachedBatches.values()) {
+            batch.clear();
+         }
+      }
 
-		this.regularRenderList = this.renderList;
-		this.renderList = this.shadowRenderList;
-		this.regularCachedBatches = this.cachedBatches;
-		this.cachedBatches = this.shadowCachedBatches;
-		this.shadowCachedBatches = null;
-		this.iris$shadowRenderListActive = true;
-		this.ensureRenderList();
-	}
+      if (this.shadowCachedBatches != null) {
+         for (MultiDrawBatch batch : this.shadowCachedBatches.values()) {
+            batch.clear();
+         }
+      }
 
-	@Unique
-	@Override
-	public void swapToRegularRenderList() {
-		if (!this.iris$shadowRenderListActive) {
-			return;
-		}
+      if (this.cachedBatches != null) {
+         for (MultiDrawBatch batch : this.cachedBatches.values()) {
+            batch.clear();
+         }
+      }
+   }
 
-		this.shadowRenderList = this.renderList;
-		this.renderList = this.regularRenderList;
-		this.shadowCachedBatches = this.cachedBatches;
-		this.cachedBatches = this.regularCachedBatches;
-		this.regularCachedBatches = null;
-		this.iris$shadowRenderListActive = false;
-		this.ensureRenderList();
-	}
+   @Override
+   public void iris$forceClearBatchFor(TerrainRenderPass pass) {
+      if (this.regularCachedBatches != null) {
+         MultiDrawBatch batch = this.regularCachedBatches.get(pass);
+         if (batch != null) {
+            batch.clear();
+         }
+      }
 
-	@Unique
-	private void ensureRenderList() {
-		if (this.renderList == null) {
-			this.renderList = new ChunkRenderList((RenderRegion) (Object) this);
-		}
+      if (this.shadowCachedBatches != null) {
+         MultiDrawBatch batch = this.shadowCachedBatches.get(pass);
+         if (batch != null) {
+            batch.clear();
+         }
+      }
 
-		if (this.cachedBatches == null) {
-			this.cachedBatches = new Reference2ReferenceOpenHashMap<>();
-		}
-	}
+      if (this.cachedBatches != null) {
+         MultiDrawBatch batch = this.cachedBatches.get(pass);
+         if (batch != null) {
+            batch.clear();
+         }
+      }
+   }
 
-	@Inject(method = "delete", at = @At("HEAD"))
-	private void iris$delete(CallbackInfo ci) {
-		if (this.regularCachedBatches != null) {
-			for(MultiDrawBatch batch : this.regularCachedBatches.values()) {
-				batch.delete();
-			}
-		}
+   @Redirect(
+      method = {"onGeometryBufferChange", "onGeometrySegmentChange", "update"},
+      at = @At(value = "INVOKE", target = "Lnet/caffeinemc/mods/sodium/client/render/chunk/region/RenderRegion;clearAllCachedBatches()V")
+   )
+   private void iris$clearAllBatchesAfterGeometryChange(RenderRegion instance) {
+      ((ShadowRenderRegion)instance).iris$forceClearAllBatches();
+   }
 
-		if (this.shadowCachedBatches != null) {
-			for(MultiDrawBatch batch : this.shadowCachedBatches.values()) {
-				batch.delete();
-			}
-		}
-	}
-
-	@Override
-	public void iris$forceClearAllBatches() {
-		if (this.regularCachedBatches != null) {
-			for(MultiDrawBatch batch : this.regularCachedBatches.values()) {
-				batch.clear();
-			}
-		}
-
-		if (this.shadowCachedBatches != null) {
-			for(MultiDrawBatch batch : this.shadowCachedBatches.values()) {
-				batch.clear();
-			}
-		}
-
-		if (this.cachedBatches != null) {
-			for(MultiDrawBatch batch : this.cachedBatches.values()) {
-				batch.clear();
-			}
-		}
-	}
-
-	@Inject(method = "clearAllCachedBatches", at = @At("HEAD"))
-	private void iris$clearAllBatches(CallbackInfo ci) {
-		this.iris$forceClearAllBatches();
-	}
-
-	@Inject(method = "clearCachedBatchFor", at = @At("HEAD"))
-	private void iris$clearBatchFor(CallbackInfo ci) {
-		if (this.regularCachedBatches != null) {
-			for(MultiDrawBatch batch : this.regularCachedBatches.values()) {
-				batch.clear();
-			}
-		}
-
-		if (this.shadowCachedBatches != null) {
-			for(MultiDrawBatch batch : this.shadowCachedBatches.values()) {
-				batch.clear();
-			}
-		}
-	}
+   @Redirect(
+      method = {"onIndexBufferChange", "onIndexSegmentChange"},
+      at = @At(
+         value = "INVOKE",
+         target = "Lnet/caffeinemc/mods/sodium/client/render/chunk/region/RenderRegion;clearCachedBatchFor(Lnet/caffeinemc/mods/sodium/client/render/chunk/terrain/TerrainRenderPass;)V"
+      )
+   )
+   private void iris$clearBatchAfterIndexChange(RenderRegion instance, TerrainRenderPass pass) {
+      ((ShadowRenderRegion)instance).iris$forceClearBatchFor(pass);
+   }
 }

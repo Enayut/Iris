@@ -3,136 +3,116 @@ package net.irisshaders.iris.shaderpack.parsing;
 import org.jetbrains.annotations.Nullable;
 
 public class ParsedString {
-	private String text;
+   private String text;
 
-	public ParsedString(String text) {
-		this.text = text;
-	}
+   public ParsedString(String text) {
+      this.text = text;
+   }
 
-	public boolean takeLiteral(String token) {
-		if (!text.startsWith(token)) {
-			return false;
-		}
+   public boolean takeLiteral(String token) {
+      if (!this.text.startsWith(token)) {
+         return false;
+      }
 
-		text = text.substring(token.length());
+      this.text = this.text.substring(token.length());
+      return true;
+   }
 
-		return true;
-	}
+   public boolean takeSomeWhitespace() {
+      if (!this.text.isEmpty() && Character.isWhitespace(this.text.charAt(0))) {
+         this.text = this.text.trim();
+         return true;
+      } else {
+         return false;
+      }
+   }
 
-	public boolean takeSomeWhitespace() {
-		if (text.isEmpty() || !Character.isWhitespace(text.charAt(0))) {
-			return false;
-		}
+   public boolean takeComments() {
+      if (!this.text.startsWith("//")) {
+         return false;
+      }
 
-		// TODO: We do a double sided trim
-		text = text.trim();
+      this.text = this.text.substring(2);
 
-		return true;
-	}
+      while (this.text.startsWith("/")) {
+         this.text = this.text.substring(1);
+      }
 
-	public boolean takeComments() {
-		if (!text.startsWith("//")) {
-			return false;
-		}
+      return true;
+   }
 
-		// Remove the initial two comment slashes
-		text = text.substring(2);
+   public boolean currentlyContains(String text) {
+      return this.text.contains(text);
+   }
 
-		// Remove any additional comment slashes
-		while (text.startsWith("/")) {
-			text = text.substring(1);
-		}
+   public boolean isEnd() {
+      return this.text.isEmpty();
+   }
 
-		return true;
-	}
+   public String takeRest() {
+      return this.text;
+   }
 
-	public boolean currentlyContains(String text) {
-		return this.text.contains(text);
-	}
+   private String takeCharacters(int numChars) {
+      String result = this.text.substring(0, numChars);
+      this.text = this.text.substring(numChars);
+      return result;
+   }
 
-	public boolean isEnd() {
-		return text.isEmpty();
-	}
+   @Nullable
+   public String takeWord() {
+      if (this.isEnd()) {
+         return null;
+      }
 
-	public String takeRest() {
-		return text;
-	}
+      int position = 0;
 
-	private String takeCharacters(int numChars) {
-		String result = text.substring(0, numChars);
-		text = text.substring(numChars);
+      for (char character : this.text.toCharArray()) {
+         if (!Character.isDigit(character) && !Character.isAlphabetic(character) && character != '_') {
+            break;
+         }
 
-		// TODO: Audit substring calls...
-		return result;
-	}
+         position++;
+      }
 
-	@Nullable
-	public String takeWord() {
-		if (isEnd()) {
-			return null;
-		}
+      return position == 0 ? null : this.takeCharacters(position);
+   }
 
-		int position = 0;
+   @Nullable
+   public String takeNumber() {
+      if (this.isEnd()) {
+         return null;
+      }
 
-		for (char character : text.toCharArray()) {
-			if (!Character.isDigit(character)
-				&& !Character.isAlphabetic(character)
-				&& character != '_') {
-				break;
-			}
+      int position = 0;
 
-			position += 1;
-		}
+      while (
+         position < this.text.length()
+            && (
+               position + 1 < this.text.length()
+                  ? Character.isDigit(this.text.charAt(position)) || Character.isDigit(this.text.charAt(position + 1))
+                  : Character.isDigit(this.text.charAt(position))
+            )
+      ) {
+         position++;
+      }
 
-		if (position == 0) {
-			return null;
-		}
+      if (position > 0 && position + 1 < this.text.length() && (this.text.charAt(position) == 'f' || this.text.charAt(position) == 'F')) {
+         position++;
+      }
 
-		return takeCharacters(position);
-	}
+      try {
+         Float.parseFloat(this.text.substring(0, position));
+      } catch (Exception e) {
+         return null;
+      }
 
-	@Nullable
-	public String takeNumber() {
-		if (isEnd()) {
-			return null;
-		}
+      return this.takeCharacters(position);
+   }
 
-		int position = 0;
-
-		while (position < text.length()) {
-			if (position + 1 < text.length()) {
-				if (!Character.isDigit(text.charAt(position)) && !Character.isDigit(text.charAt(position + 1))) {
-					break;
-				}
-			} else if (!Character.isDigit(text.charAt(position))) {
-				break;
-			}
-
-			position++;
-		}
-
-		// take any f float suffixes, if we have a number
-		if (position > 0 && position + 1 < text.length() && (text.charAt(position) == 'f' || text.charAt(position) == 'F')) {
-			position++;
-		}
-
-		try {
-			Float.parseFloat(text.substring(0, position));
-		} catch (Exception e) {
-			return null;
-		}
-
-		return takeCharacters(position);
-	}
-
-	@Nullable
-	public String takeWordOrNumber() {
-		String number = takeNumber();
-
-		if (number == null) {
-			return takeWord();
-		}
-
-		return number;
-	}
+   @Nullable
+   public String takeWordOrNumber() {
+      String number = this.takeNumber();
+      return number == null ? this.takeWord() : number;
+   }
 }
